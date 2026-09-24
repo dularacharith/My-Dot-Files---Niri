@@ -1,0 +1,399 @@
+#!/usr/bin/env python3
+"""
+niri-floating-stash:
+Automatically stashes (hides) floating windows on a workspace when a window
+is maximized or fullscreened (such as VLC, Haruna, or any window maximized to edges),
+and seamlessly restores them to their exact prior positions when unmaximized or closed.
+"""
+
+import os
+import sys
+import json
+import time
+import socket
+import signal
+import threading
+import logging
+import subprocess
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+log = logging.getLogger("niri-floating-stash")
+
+def get_niri_socket():
+    sock = os.environ.get("NIRI_SOCKET")
+    if sock and os.path.exists(sock):
+        return sock
+    uid = os.getuid()
+    run_dir = f"/run/user/{uid}"
+    if os.path.isdir(run_dir):
+        for f in os.listdir(run_dir):
+            if f.startswith("niri.") and f.endswith(".sock"):
+                candidate = os.path.join(run_dir, f)
+                if os.path.exists(candidate):
+                    return candidate
+    return None
+
+class NiriFloatingStasher:
+    def __init__(self):
+        self.sock_path = None
+        self.cmd_sock = None
+        self.cmd_reader = None
+        self.event_sock = None
+        self.event_reader = None
+        
+        # stashed: max_win_id -> { stashed_win_id: orig_ws_id }
+        self.stashed = {}
+        # tracked width history: win_id -> last_width
+        self.last_widths = {}
+        # tracked floating state history: win_id -> bool
+        self.was_floating = {}
+        # active maximized windows
+        self.maximized_window_ids = set()
+        self.bar_hidden = False
+        
+        self.lock = threading.RLock()
+        self.running = True
+
+    def connect(self):
+        self.sock_path = get_niri_socket()
+        if not self.sock_path:
+            raise RuntimeError("NIRI_SOCKET not found")
+        
+        log.info(f"Connecting to Niri socket: {self.sock_path}")
+        # Command socket
+        self.cmd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.cmd_sock.connect(self.sock_path)
+        self.cmd_reader = self.cmd_sock.makefile('r')
+        
+        # Event socket
+        self.event_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.event_sock.connect(self.sock_path)
+        self.event_reader = self.event_sock.makefile('r')
+        self.event_sock.sendall(b'"EventStream"\n')
+
+    def close(self):
+        try:
+            if self.cmd_sock:
+                try:
+                    self.cmd_sock.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+                self.cmd_sock.close()
+        except Exception:
+            pass
+        try:
+            if self.event_sock:
+                try:
+                    self.event_sock.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+                self.event_sock.close()
+        except Exception:
+            pass
+        self.cmd_sock = None
+        self.cmd_reader = None
+        self.event_sock = None
+        self.event_reader = None
+
+    def send_action(self, action_dict):
+        try:
+            req = json.dumps({"Action": action_dict}) + "\n"
+            self.cmd_sock.sendall(req.encode())
+            res_line = self.cmd_reader.readline()
+            if not res_line:
+                return None
+            return json.loads(res_line)
+        except Exception as e:
+            log.warning(f"Error sending action: {e}")
+            return None
+
+    def query(self, req_str):
+        try:
+            req = f'"{req_str}"\n'
+            self.cmd_sock.sendall(req.encode())
+            res_line = self.cmd_reader.readline()
+            if not res_line:
+                return None
+            resp = json.loads(res_line)
+            return resp.get("Ok", {}).get(req_str)
+        except Exception as e:
+            log.warning(f"Error querying {req_str}: {e}")
+            return None
+
+    def is_window_maximized(self, win, out_w, out_h):
+        if not win or win.get("is_floating"):
+            return False
+            
+        win_id = win["id"]
+        tile_size = win.get("layout", {}).get("tile_size")
+        if not tile_size:
+            return False
+            
+        w, h = tile_size[0], tile_size[1]
+        prev_w = self.last_widths.get(win_id, w)
+        self.last_widths[win_id] = w
+
+        app_id = (win.get("app_id") or "").lower()
+        is_media = any(m in app_id for m in ("vlc", "haruna", "mpv", "celluloid", "showtime", "decibels", "totem"))
+        
+        # 1. Media player: in Niri configured as open-floating true, so non-floating means maximized/fullscreen
+        if is_media and not win.get("is_floating"):
+            return True
+            
+        # 2. Fullscreen or maximize-to-edges: extends to full output width (eliminating gaps)
+        if w >= (out_w - 5) and h >= (out_h - 120):
+            return True
+            
+        # 3. Transition from narrow to maximized column (e.g. Mod+F in multi-column layout)
+        if prev_w < (out_w - 150) and w >= (out_w - 25):
+            return True
+            
+        # If this window was already recorded as maximized and is still wide
+        if win_id in self.maximized_window_ids and w >= (out_w - 25):
+            return True
+
+        return False
+
+    def is_fullscreen_or_media_expanded(self, win, out_w, out_h):
+        if not win or win.get("is_floating"):
+            return False
+            
+        tile_size = win.get("layout", {}).get("tile_size")
+        if not tile_size:
+            return False
+            
+        w, h = tile_size[0], tile_size[1]
+        app_id = (win.get("app_id") or "").lower()
+        is_media = any(m in app_id for m in ("vlc", "haruna", "mpv", "celluloid", "showtime", "decibels", "totem"))
+        
+        # 1. Media player: in Niri configured as open-floating true, so non-floating means maximized/fullscreen
+        if is_media and not win.get("is_floating"):
+            return True
+            
+        # 2. Window covering the full screen without gaps (true fullscreen)
+        if abs(w - out_w) <= 2 and abs(h - out_h) <= 2:
+            return True
+            
+        return False
+
+    def hide_bar(self):
+        if not self.bar_hidden:
+            self.bar_hidden = True
+            log.info("Hiding top bar for fullscreen/expanded window")
+            try:
+                subprocess.Popen(["/usr/bin/dms", "ipc", "call", "bar", "hide", "index", "0"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                log.warning(f"Error hiding bar: {e}")
+
+    def reveal_bar(self):
+        if self.bar_hidden:
+            self.bar_hidden = False
+            log.info("Revealing top bar")
+            try:
+                subprocess.Popen(["/usr/bin/dms", "ipc", "call", "bar", "reveal", "index", "0"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                log.warning(f"Error revealing bar: {e}")
+
+    def restore_all(self):
+        with self.lock:
+            self.reveal_bar()
+            if not self.stashed:
+                return
+            log.info("Restoring all stashed windows before exit...")
+            try:
+                workspaces = self.query("Workspaces") or []
+                ws_by_id = {ws["id"]: ws for ws in workspaces}
+                for max_id, stashed_dict in list(self.stashed.items()):
+                    for wid, orig_ws_id in stashed_dict.items():
+                        orig_ws = ws_by_id.get(orig_ws_id)
+                        orig_idx = orig_ws.get("idx") if orig_ws else 1
+                        self.send_action({"MoveWindowToWorkspace": {"window_id": wid, "reference": {"Index": orig_idx}, "focus": False}})
+                        self.send_action({"MoveWindowToFloating": {"id": wid}})
+                self.stashed.clear()
+                self.maximized_window_ids.clear()
+            except Exception as e:
+                log.error(f"Error restoring stashed windows: {e}")
+
+    def schedule_restore(self, max_id, stashed_dict, delay=0.0):
+        def do_restore():
+            with self.lock:
+                try:
+                    workspaces = self.query("Workspaces") or []
+                    ws_by_id = {ws["id"]: ws for ws in workspaces}
+                    windows = self.query("Windows") or []
+                    win_by_id = {w["id"]: w for w in windows}
+                    
+                    log.info(f"Restoring {len(stashed_dict)} floating windows stashed by window {max_id}")
+                    for wid, orig_ws_id in stashed_dict.items():
+                        if wid in win_by_id:
+                            orig_ws = ws_by_id.get(orig_ws_id)
+                            orig_idx = orig_ws.get("idx") if orig_ws else 1
+                            self.send_action({"MoveWindowToWorkspace": {"window_id": wid, "reference": {"Index": orig_idx}, "focus": False}})
+                            
+                    # Ensure max_id maintains focus and top Z-order
+                    if max_id in win_by_id:
+                        self.send_action({"FocusWindow": {"id": max_id}})
+                except Exception as e:
+                    log.error(f"Error restoring stashed windows: {e}")
+
+        if delay <= 0.0:
+            do_restore()
+        else:
+            t = threading.Timer(delay, do_restore)
+            t.daemon = True
+            t.start()
+
+    def check_and_update(self):
+        with self.lock:
+            windows = self.query("Windows")
+            if windows is None:
+                return
+            win_by_id = {w["id"]: w for w in windows}
+            
+            # Track which windows were floating
+            for w in windows:
+                if w.get("is_floating"):
+                    self.was_floating[w["id"]] = True
+            
+            workspaces = self.query("Workspaces") or []
+            ws_by_id = {ws["id"]: ws for ws in workspaces}
+            
+            outputs = self.query("Outputs") or {}
+
+            # 1. Check existing stashed window groups:
+            for max_id in list(self.stashed.keys()):
+                max_win = win_by_id.get(max_id)
+                should_restore = False
+                delay = 0.0
+                
+                if not max_win:
+                    # Maximized window was closed
+                    should_restore = True
+                    delay = 0.0
+                else:
+                    ws = ws_by_id.get(max_win.get("workspace_id"))
+                    out_name = ws.get("output") if ws else None
+                    out_data = outputs.get(out_name, {}) if out_name else list(outputs.values())[0] if outputs else {}
+                    out_w = out_data.get("logical", {}).get("width", 1536)
+                    out_h = out_data.get("logical", {}).get("height", 864)
+                    
+                    if not self.is_window_maximized(max_win, out_w, out_h):
+                        should_restore = True
+                        # Allow 200ms unmaximize animation to finish smoothly
+                        delay = 0.22
+                        
+                if should_restore:
+                    stashed_dict = self.stashed.pop(max_id, {})
+                    self.maximized_window_ids.discard(max_id)
+                    self.schedule_restore(max_id, stashed_dict, delay=delay)
+
+            # 2. Check currently focused window
+            focused = None
+            for w in windows:
+                if w.get("is_focused"):
+                    focused = w
+                    break
+                    
+            if focused:
+                f_id = focused["id"]
+                f_ws_id = focused.get("workspace_id")
+                ws = ws_by_id.get(f_ws_id)
+                out_name = ws.get("output") if ws else None
+                out_data = outputs.get(out_name, {}) if out_name else list(outputs.values())[0] if outputs else {}
+                out_w = out_data.get("logical", {}).get("width", 1536)
+                out_h = out_data.get("logical", {}).get("height", 864)
+
+                if self.is_window_maximized(focused, out_w, out_h):
+                    self.maximized_window_ids.add(f_id)
+                    if f_id not in self.stashed:
+                        self.stashed[f_id] = {}
+                        
+                    # Stash all other floating windows on this workspace
+                    to_stash = []
+                    for w in windows:
+                        if w.get("workspace_id") == f_ws_id and w.get("is_floating") and w.get("id") != f_id:
+                            # Never stash sub-windows / dialogs belonging to the same application
+                            if (w.get("app_id") or "").lower() == (focused.get("app_id") or "").lower():
+                                continue
+                            to_stash.append(w["id"])
+                            
+                    for wid in to_stash:
+                        log.info(f"Stashing floating window {wid} on workspace {f_ws_id} for maximized window {f_id}")
+                        self.send_action({"MoveWindowToWorkspace": {"window_id": wid, "reference": {"Index": 99}, "focus": False}})
+                        self.stashed[f_id][wid] = f_ws_id
+
+            # 3. Bar visibility management
+            active_ws_ids = {ws["id"] for ws in workspaces if ws.get("is_active")}
+            should_hide_bar = False
+            for w in windows:
+                if w.get("workspace_id") in active_ws_ids:
+                    ws = ws_by_id.get(w.get("workspace_id"))
+                    out_name = ws.get("output") if ws else None
+                    out_data = outputs.get(out_name, {}) if out_name else list(outputs.values())[0] if outputs else {}
+                    out_w = out_data.get("logical", {}).get("width", 1536)
+                    out_h = out_data.get("logical", {}).get("height", 864)
+                    if self.is_fullscreen_or_media_expanded(w, out_w, out_h):
+                        should_hide_bar = True
+                        break
+
+            if should_hide_bar:
+                self.hide_bar()
+            else:
+                self.reveal_bar()
+
+    def run(self):
+        log.info("Starting Niri Floating Window Stash Daemon...")
+        while self.running:
+            try:
+                self.connect()
+                # Skip initial event preamble
+                for line in self.event_reader:
+                    data = json.loads(line.strip())
+                    if "ConfigLoaded" in data:
+                        break
+                
+                log.info("Niri event stream active. Listening for window events...")
+                # Run initial scan
+                self.check_and_update()
+                
+                # Event loop
+                for line in self.event_reader:
+                    if not self.running:
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        k = list(data.keys())[0]
+                        if k in ("WindowOpenedOrChanged", "WindowClosed", "WindowFocusChanged", "WindowLayoutsChanged", "WorkspaceActiveWindowChanged"):
+                            self.check_and_update()
+                    except Exception as e:
+                        log.debug(f"Event parse error: {e}")
+            except Exception as e:
+                log.warning(f"Connection lost or error: {e}. Reconnecting in 1s...")
+                self.close()
+                time.sleep(1.0)
+
+def main():
+    stasher = NiriFloatingStasher()
+
+    def handle_signal(sig, frame):
+        log.info(f"Caught signal {sig}, terminating...")
+        stasher.running = False
+        stasher.restore_all()
+        stasher.close()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
+    stasher.run()
+
+if __name__ == "__main__":
+    main()

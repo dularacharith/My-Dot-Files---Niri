@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# wallpaper-ctl: Control wallpapers for Niri & Dank Material Shell (DMS)
+set -euo pipefail
+
+WALLPAPER_DIR="$HOME/Pictures/Wallpapers/Landscape"
+
+show_help() {
+    cat <<EOF
+Usage: $(basename "$0") <command> [args...]
+
+Commands:
+  next             Switch to the next wallpaper in the collection
+  prev             Switch to the previous wallpaper in the collection
+  random           Select and apply a random landscape wallpaper
+  set <file|path>  Set a specific wallpaper (relative to collection or full path)
+  current          Display the currently active wallpaper path
+  list             List all wallpapers available in the collection
+  open             Open the interactive DMS Wallpaper Settings GUI
+  help             Show this help message
+
+Wallpaper directory:
+  $WALLPAPER_DIR
+EOF
+}
+
+notify_wallpaper() {
+    local wp="$1"
+    local name
+    name=$(basename "$wp" | sed -E 's/\.[^.]+$//' | tr '_' ' ' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+    notify-send -a "Wallpaper" -i "$wp" "Wallpaper Changed" "$name" 2>/dev/null || true
+}
+
+cmd="${1:-help}"
+
+case "$cmd" in
+    next)
+        dms ipc call wallpaper next >/dev/null 2>&1 || true
+        current=$(dms ipc call wallpaper get 2>/dev/null || echo "")
+        if [[ -n "$current" && -f "$current" ]]; then
+            notify_wallpaper "$current"
+            echo "Wallpaper set to: $current"
+        else
+            echo "Cycled to next wallpaper"
+        fi
+        ;;
+
+    prev)
+        dms ipc call wallpaper prev >/dev/null 2>&1 || true
+        current=$(dms ipc call wallpaper get 2>/dev/null || echo "")
+        if [[ -n "$current" && -f "$current" ]]; then
+            notify_wallpaper "$current"
+            echo "Wallpaper set to: $current"
+        else
+            echo "Cycled to previous wallpaper"
+        fi
+        ;;
+
+    random)
+        mapfile -t files < <(find -L "$WALLPAPER_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.jxl" \) 2>/dev/null | sort)
+        if [[ ${#files[@]} -eq 0 ]]; then
+            echo "Error: No wallpapers found in $WALLPAPER_DIR" >&2
+            exit 1
+        fi
+        current=$(dms ipc call wallpaper get 2>/dev/null || echo "")
+        target="${files[$RANDOM % ${#files[@]}]}"
+        if [[ ${#files[@]} -gt 1 && "$target" == "$current" ]]; then
+            target="${files[$RANDOM % ${#files[@]}]}"
+        fi
+        dms ipc call wallpaper set "$target" >/dev/null
+        notify_wallpaper "$target"
+        echo "Random wallpaper set: $target"
+        ;;
+
+    set)
+        if [[ -z "${2:-}" ]]; then
+            echo "Error: Please specify a wallpaper file or full path" >&2
+            exit 1
+        fi
+        target="$2"
+        if [[ ! -f "$target" && -f "$WALLPAPER_DIR/$target" ]]; then
+            target="$WALLPAPER_DIR/$target"
+        fi
+        if [[ ! -f "$target" ]]; then
+            echo "Error: File not found: $2" >&2
+            exit 1
+        fi
+        abs_path=$(realpath "$target")
+        dms ipc call wallpaper set "$abs_path" >/dev/null
+        notify_wallpaper "$abs_path"
+        echo "Wallpaper set to: $abs_path"
+        ;;
+
+    current)
+        current=$(dms ipc call wallpaper get 2>/dev/null || echo "")
+        if [[ -n "$current" ]]; then
+            echo "Current wallpaper: $current"
+        else
+            echo "No wallpaper currently reported by DMS"
+        fi
+        ;;
+
+    list)
+        echo "Available wallpapers in $WALLPAPER_DIR:"
+        find -L "$WALLPAPER_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.jxl" \) -exec basename {} \; 2>/dev/null | sort | sed 's/^/  • /'
+        ;;
+
+    open)
+        dms ipc call settings openWith wallpaper
+        ;;
+
+    help|--help|-h)
+        show_help
+        ;;
+
+    *)
+        echo "Unknown command: $cmd" >&2
+        show_help
+        exit 1
+        ;;
+esac

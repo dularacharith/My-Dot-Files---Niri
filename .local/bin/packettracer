@@ -1,0 +1,13 @@
+#!/bin/bash
+# Cisco Packet Tracer 9.0.1 launcher script
+HERE="${HOME}/.local/opt/pt"
+ptdir="${HERE}/opt/pt"
+instptlibdir="${HOME}/.local/.packettracer/lib"
+
+export PT9HOME="${ptdir}"
+export LD_LIBRARY_PATH="${ptdir}/bin:${HERE}/usr/lib:${instptlibdir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export QT_QUICK_BACKEND=auto
+export LD_PRELOAD="${HOME}/.local/lib/libpt_canvas_fix.so${LD_PRELOAD:+:${LD_PRELOAD}}"
+
+cd "${ptdir}/bin"
+exec ./PacketTracer "$@"

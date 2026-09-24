@@ -1,0 +1,33 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# C / C++ build artifacts
+*.o
+*.so
+*.a
+*.out
+
+# Editors and backups
+*~
+*.swp
+*.swo
+*.bak*
+*.backup*
+*.tmp
+.vscode/
+.idea/
+
+# Shell history & runtime files
+.zsh_history
+.bash_history
+*.log
+.cache/
+
+# OS artifacts
+.DS_Store
+Thumbs.db

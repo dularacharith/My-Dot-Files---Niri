@@ -110,6 +110,7 @@ backup_existing() {
         "gtk-4.0"
         "fish"
         "zsh"
+        "vlc"
     )
 
     for cfg in "${configs[@]}"; do

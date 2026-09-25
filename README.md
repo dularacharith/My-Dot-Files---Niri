@@ -66,6 +66,7 @@ Designed for peak productivity, aesthetic elegance, and seamless multitasking. F
 | `Mod + Shift + Left / Right` | Move Column Left / Right |
 | `Mod + Shift + Up / Down` | Move Window Up / Down in Column |
 | `Mod + WheelScrollDown / Up` | Navigate Workspaces Down / Up |
+| `Mod + Alt + L` | Lock Screen (DMS Material You Lock) |
 | `Ctrl + Alt + Delete` | Quit Niri Session |
 
 *(Note: `Mod` is mapped to the `Super` / Windows key)*

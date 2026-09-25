@@ -27,8 +27,8 @@ ble-face -s syntax_error fg=203
 # Show menu list on first Tab press (not just inline completion)
 bleopt complete_menu_complete=1
 
-# Menu style: align items in a navigable column list
-bleopt complete_menu_style=align-nowrap
+# Menu style: vertical single-column list (popup-like)
+bleopt complete_menu_style=linewise
 
 # Show completion menu immediately with filtering
 bleopt complete_menu_filter=1

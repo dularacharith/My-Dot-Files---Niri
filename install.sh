@@ -180,11 +180,27 @@ deploy_local_share() {
     # Create / update symlink in ~/.local/bin
     ln -sf "$HOME/.local/share/win-snipping-tool/snip_main.py" "$HOME/.local/bin/win-snipping-tool"
 
-    # Install desktop entry
+    # Deploy icons (macOS cursor theme, application icons)
+    if [ -d "$SCRIPT_DIR/.local/share/icons" ]; then
+        mkdir -p "$HOME/.local/share/icons"
+        cp -r "$SCRIPT_DIR/.local/share/icons/"* "$HOME/.local/share/icons/"
+        mkdir -p "$HOME/.icons"
+        if [ -d "$HOME/.local/share/icons/macOS" ]; then
+            ln -sfn "$HOME/.local/share/icons/macOS" "$HOME/.icons/macOS"
+        fi
+    fi
+
+    # Install desktop entries
     cp -r "$SCRIPT_DIR/.local/share/applications/"* "$HOME/.local/share/applications/"
+    sed -i "s|/home/[^/]*/.local/bin/packettracer|packettracer|g" "$HOME/.local/share/applications/CiscoPacketTracer"*.desktop 2>/dev/null || true
     update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 
-    log_success "Win Snipping Tool installed (bind: Mod+Shift+S)."
+    # Flatpak sandbox overrides for cursor theme access
+    if command -v flatpak &>/dev/null; then
+        flatpak override --user --filesystem=xdg-data/icons:ro --filesystem=~/.icons:ro --env=XCURSOR_THEME=macOS --env=XCURSOR_SIZE=24 2>/dev/null || true
+    fi
+
+    log_success "Applications, desktop entries, and macOS cursor theme installed."
 }
 
 # ------------------------------------------------------------------------------

@@ -37,6 +37,9 @@ Designed for peak productivity, aesthetic elegance, and seamless multitasking. F
 - **Cisco Packet Tracer Wayland Shim**:
   - `libpt_canvas_fix.so`: Custom LD_PRELOAD C shim that embeds in-canvas notes and cluster editing directly into Packet Tracer's graphics viewport under Wayland compositors.
 
+- **Universal Cursor & HiDPI Consistency**:
+  - macOS cursor theme synchronized seamlessly across Wayland, XWayland (via `xrdb` and `xwayland-satellite`), GTK 2/3/4, Qt 5/6, and Flatpak apps with consistent 24px scaling.
+
 ---
 
 ## ⌨️ Keybindings Cheat Sheet
@@ -232,6 +235,8 @@ My-Dot-Files---Niri/
 │   ├── fastfetch/                  # Fastfetch system info layout
 │   ├── swaylock/                   # Lockscreen aesthetics
 │   ├── cava/                       # Audio visualizer config & shaders
+│   ├── vlc/                        # VLC configuration (xlib/XWayland mode, pulse audio, clean view)
+│   ├── kdeglobals, qt5ct, qt6ct    # Qt5/Qt6/KDE cursor theme & appearance synchronization
 │   ├── gtk-3.0/ & gtk-4.0/         # GTK themes & Material You color bindings
 │   ├── fish/ & zsh/                # Shell configs (.zshrc, .p10k.zsh, config.fish)
 │   └── danksearch/ & dgop/         # Search provider & widget configurations
@@ -241,10 +246,14 @@ My-Dot-Files---Niri/
 │   │   ├── wallpaper-ctl           # Wallpaper management script
 │   │   └── packettracer            # Cisco Packet Tracer Wayland launcher wrapper
 │   ├── share/
-│   │   ├── applications/           # Desktop entries (.desktop)
+│   │   ├── applications/           # Desktop entries (Chrome, Snipping Tool, Cisco Packet Tracer)
+│   │   ├── icons/                  # macOS cursor theme collection & Packet Tracer app icons
 │   │   └── win-snipping-tool/      # Python GTK4 Snipping Tool with editor & toast UI
 │   └── src/
 │       └── pt_canvas_fix/          # C source & Makefile for Packet Tracer canvas fix
+├── .icons/                         # Default cursor inheritance (macOS)
+├── .Xresources & .xprofile         # X11 / XWayland xrdb cursor scaling & resource synchronization
+├── .gtkrc-2.0                      # GTK2 cursor theme & size fallback
 ├── wallpapers/                     # 14 curated high-resolution landscape wallpapers
 ├── install.sh                      # Automated, idempotent installer script
 ├── .gitignore

@@ -135,7 +135,21 @@ deploy_configs() {
         sed -i "s|/home/[^/]*|$HOME|g" "$HOME/.config/danksearch/config.toml"
     fi
 
-    log_success "~/.config files deployed successfully."
+    # Deploy root dotfiles (.Xresources, .Xdefaults, .xprofile, .gtkrc-2.0, .icons)
+    for f in .Xresources .Xdefaults .xprofile .gtkrc-2.0; do
+        if [ -f "$SCRIPT_DIR/$f" ]; then
+            cp "$SCRIPT_DIR/$f" "$HOME/$f"
+        fi
+    done
+    if [ -f "$HOME/.xprofile" ]; then
+        chmod +x "$HOME/.xprofile"
+    fi
+    if [ -d "$SCRIPT_DIR/.icons" ]; then
+        mkdir -p "$HOME/.icons"
+        cp -r "$SCRIPT_DIR/.icons/"* "$HOME/.icons/"
+    fi
+
+    log_success "~/.config and root dotfiles deployed successfully."
 }
 
 # ------------------------------------------------------------------------------

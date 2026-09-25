@@ -147,8 +147,13 @@ overview {
 // See the binds section below for more spawn examples.
 // This line starts waybar, a commonly used bar for Wayland compositors.
 environment {
-  XDG_CURRENT_DESKTOP "niri"
+    XDG_CURRENT_DESKTOP "niri"
+    XCURSOR_THEME "macOS"
+    XCURSOR_SIZE "24"
+    HYPRCURSOR_THEME "macOS"
+    HYPRCURSOR_SIZE "24"
 }
+spawn-at-startup "sh" "-c" "xrdb -merge ~/.Xresources"
 hotkey-overlay {
     skip-at-startup
 }

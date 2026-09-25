@@ -4,6 +4,6 @@
 // ! PLACE YOUR CUSTOM CONFIGURATION ELSEWHERE !
 
 cursor {
-    xcursor-theme "Adwaita"
-    xcursor-size 19
+    xcursor-theme "macOS"
+    xcursor-size 24
 }

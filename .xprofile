@@ -1,0 +1,4 @@
+#!/bin/sh
+xrdb -merge ~/.Xresources
+export XCURSOR_THEME="macOS"
+export XCURSOR_SIZE=24

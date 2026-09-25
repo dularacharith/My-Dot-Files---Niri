@@ -67,5 +67,41 @@ __set_prompt() {
 }
 PROMPT_COMMAND=__set_prompt
 
+# Override clear and reset to unpin banner and restore full terminal screen
+clear() {
+    export _banner_pinned=0
+    printf '\033[?6l\033[r'
+    command clear "$@"
+}
+
+reset() {
+    export _banner_pinned=0
+    printf '\033[?6l\033[r'
+    command reset "$@"
+}
+
+# Update scrolling region if window is resized while banner is pinned
+_update_scroll_region() {
+    if [[ ${_banner_pinned:-0} -eq 1 ]]; then
+        if (( LINES > 24 )); then
+            printf '\0337\033[19;%dr\0338' "$LINES"
+        else
+            _banner_pinned=0
+            printf '\033[?6l\033[r'
+        fi
+    fi
+}
+trap '_update_scroll_region' WINCH
+trap 'printf "\033[?6l\033[r"' EXIT
+
 # Attach ble.sh autosuggestions
 [[ ${BLE_VERSION-} ]] && ble-attach
+
+# Pin fastfetch banner at top: content below scrolls, banner stays fixed
+if [[ $- == *i* ]]; then
+    export _banner_pinned=1
+    _banner_top=19
+    if (( LINES > 24 )); then
+        printf '\033[%d;%dr\033[?6h\033[H' "$_banner_top" "$LINES"
+    fi
+fi

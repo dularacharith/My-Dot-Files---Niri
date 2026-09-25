@@ -35,3 +35,11 @@ bleopt complete_menu_complete=1
 # fzf appearance: bordered popup, reverse layout, centered
 export FZF_DEFAULT_OPTS="--height=40% --layout=reverse --border=rounded --margin=1,2 --padding=1 --pointer='❯' --marker='✓' --color=bg+:#1e1b2e,fg+:#c084fc,hl:#38bdf8,hl+:#38bdf8,pointer:#38bdf8,marker:#a3e635,border:#3b3552,header:#938f99,prompt:#c084fc,info:#938f99"
 
+# Unpin pinned header on Ctrl+L and restore full terminal
+function ble/widget/unpin-and-clear-screen {
+    export _banner_pinned=0
+    printf '\033[?6l\033[r'
+    ble/widget/clear-screen
+}
+ble-bind -f 'C-l' unpin-and-clear-screen
+

@@ -373,7 +373,7 @@ class SnippingOverlay(Gtk.ApplicationWindow):
 
     def on_click_pressed(self, gesture, n_press, x, y):
         if self.mode == "window":
-            win = find_window_at(self.windows, x, y)
+            win = self.hovered_window if (self.hovered_window and self.hovered_window.contains(x, y)) else find_window_at(self.windows, x, y)
             if win:
                 px, py, pw, ph = win.rect_physical
                 px = max(0, min(px, self.img_w - 1))

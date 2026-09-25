@@ -393,38 +393,83 @@ button.action-btn-secondary:active {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
-.zoom-badge {
-    background-color: alpha(@window_fg_color, 0.08);
-    color: @window_fg_color;
-    border-radius: 15px;
-    padding: 5px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    min-width: 52px;
-    border: 1px solid alpha(@window_fg_color, 0.16);
-    outline: none;
+/* Zoom badge styling matching tool-button */
+.tool-button.zoom-badge {
+    min-width: 44px;
+    font-weight: 500;
+}
+
+/* Tool Palette Popover */
+popover.tool-popover contents {
+    background-color: #24252e;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.50);
+}
+
+.popover-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 2px;
+}
+
+/* Color Swatch Button */
+button.color-swatch-btn {
+    min-width: 28px;
+    min-height: 28px;
+    padding: 2px;
+    margin: 1px;
+    border-radius: 16px;
+    background-color: transparent;
+    border: 2px solid transparent;
+    box-shadow: none;
     transition: all 120ms ease;
 }
 
-.zoom-badge:hover {
-    background-color: alpha(@window_fg_color, 0.16);
+button.color-swatch-btn:hover {
+    transform: scale(1.18);
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
-.zoom-btn {
-    background: transparent;
-    border: none;
-    outline: none;
+button.color-swatch-btn.selected {
+    border: 2px solid #3880ff;
+    background-color: rgba(56, 128, 255, 0.25);
+    transform: scale(1.12);
+}
+
+/* Size Preset Button */
+button.size-preset-btn {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 2px;
     border-radius: 8px;
-    padding: 6px 8px;
-    color: @window_fg_color;
-    min-width: 30px;
-    min-height: 30px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: none;
     transition: all 120ms ease;
 }
 
-.zoom-btn:hover {
-    background-color: alpha(@window_fg_color, 0.10);
+button.size-preset-btn:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.30);
+}
+
+button.size-preset-btn.selected {
+    background-color: rgba(56, 128, 255, 0.25);
+    border: 1.5px solid #3880ff;
+}
+
+/* Stroke Preview Container */
+.stroke-preview-box {
+    margin-top: 6px;
+    border-radius: 8px;
 }
 """
 
 MODERN_CSS = get_app_css()
+

@@ -1,5 +1,8 @@
 # .bashrc
 
+# Suppress keyboard echo during startup to prevent leaked keystrokes
+[[ $- == *i* ]] && stty -echo 2>/dev/null
+
 # ble.sh: Bash autosuggestions and line editor
 [[ $- == *i* ]] && [ -f "$HOME/.local/share/blesh/ble.sh" ] && source "$HOME/.local/share/blesh/ble.sh" --noattach
 
@@ -34,8 +37,8 @@ export XCURSOR_SIZE=24
 
 # Display system info with CharithD ASCII art on terminal launch
 if [[ $- == *i* ]]; then
-    stty -echo 2>/dev/null
     fastfetch
+    # Flush any buffered keystrokes and restore echo
     read -t 0.01 -n 10000 discard 2>/dev/null || true
     stty echo 2>/dev/null
 fi

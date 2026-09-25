@@ -22,3 +22,26 @@ ble-face -s command_alias fg=111
 ble-face -s command_function fg=111
 ble-face -s command_directory fg=75
 ble-face -s syntax_error fg=203
+
+# ── Interactive completion menu ──────────────────────────────────
+# Show menu list on first Tab press (not just inline completion)
+bleopt complete_menu_complete=1
+
+# Menu style: align items in a navigable column list
+bleopt complete_menu_style=align-nowrap
+
+# Show completion menu immediately with filtering
+bleopt complete_menu_filter=1
+
+# Max height for the completion menu (rows)
+bleopt complete_menu_maxlines=20
+
+# Menu colors: subtle styling for dark terminal
+ble-face -s menu_filter_fixed fg=75
+ble-face -s menu_filter_input fg=252,bold
+
+# Bind arrow keys and Enter in menu for navigation & selection
+ble-bind -m auto_complete -f up     auto_complete/cancel
+ble-bind -m auto_complete -f down   auto_complete/cancel
+ble-bind -m auto_complete -f C-e    auto_complete/insert
+

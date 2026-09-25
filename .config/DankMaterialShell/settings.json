@@ -13,8 +13,8 @@
   "networkPreference": "wifi",
   "iconThemePerMode": true,
   "cursorSettings": {
-    "theme": "Adwaita",
-    "size": 19,
+    "theme": "macOS",
+    "size": 24,
     "niri": {
       "hideWhenTyping": false,
       "hideAfterInactiveMs": 0
@@ -95,9 +95,9 @@
       "widgetOutlineThickness": 1,
       "fontScale": 1.08,
       "iconScale": 1,
-      "autoHide": false,
-      "autoHideStrict": false,
-      "autoHideDelay": 250,
+      "autoHide": true,
+      "autoHideStrict": true,
+      "autoHideDelay": 600,
       "showOnWindowsOpen": false,
       "openOnOverview": false,
       "visible": true,
@@ -144,5 +144,6 @@
     "hslLightness": 1,
     "valid": true
   },
-  "configVersion": 18
+  "configVersion": 18,
+  "animationSpeed": 3
 }

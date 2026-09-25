@@ -60,20 +60,20 @@
 
     {
       "type": "cpu",
-      "key": "│ {#37}󰍛 cpu    {#keys}│",
+      "key": "│ {#33}󰍛 cpu    {#keys}│",
       "format": "{name}"
     },
 
     {
       "type": "gpu",
-      "key": "│ {#38}󰢮 gpu    {#keys}│",
+      "key": "│ {#32}󰢮 gpu    {#keys}│",
       "hideType": "integrated",
       "format": "{1}"
     },
 
     {
       "type": "memory",
-      "key": "│ {#39}󰋊 memory {#keys}│",
+      "key": "│ {#35}󰋊 memory {#keys}│",
       "format": "{used} / {total}"
     },
 
@@ -84,7 +84,7 @@
 
     {
       "type": "colors",
-      "key": "│ {#40} colors {#keys}│",
+      "key": "│ {#36} colors {#keys}│",
       "symbol": "circle"
     },
 

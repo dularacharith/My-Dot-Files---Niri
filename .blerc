@@ -1,0 +1,18 @@
+# ble.sh configuration (Bash Line Editor & Autosuggestions)
+
+# Instant autosuggestions as you type
+bleopt complete_auto_delay=0
+
+# Syntax highlighting
+bleopt highlight_syntax=1
+
+# Disable audible bell
+bleopt edit_abell=0
+
+# Auto-complete styling: clean dimmed ghost text matching dark terminal
+ble-face -s auto_complete fg=243
+ble-face -s command_builtin_dot fg=141
+ble-face -s command_alias fg=111
+ble-face -s command_function fg=111
+ble-face -s command_directory fg=75
+ble-face -s syntax_error fg=203

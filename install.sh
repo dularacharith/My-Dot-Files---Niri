@@ -135,8 +135,8 @@ deploy_configs() {
         sed -i "s|/home/[^/]*|$HOME|g" "$HOME/.config/danksearch/config.toml"
     fi
 
-    # Deploy root dotfiles (.Xresources, .Xdefaults, .xprofile, .gtkrc-2.0, .bashrc, .icons)
-    for f in .Xresources .Xdefaults .xprofile .gtkrc-2.0 .bashrc; do
+    # Deploy root dotfiles (.Xresources, .Xdefaults, .xprofile, .gtkrc-2.0, .bashrc, .blerc, .icons)
+    for f in .Xresources .Xdefaults .xprofile .gtkrc-2.0 .bashrc .blerc; do
         if [ -f "$SCRIPT_DIR/$f" ]; then
             cp "$SCRIPT_DIR/$f" "$HOME/$f"
         fi
@@ -147,6 +147,15 @@ deploy_configs() {
     if [ -d "$SCRIPT_DIR/.icons" ]; then
         mkdir -p "$HOME/.icons"
         cp -r "$SCRIPT_DIR/.icons/"* "$HOME/.icons/"
+    fi
+
+    # Install ble.sh for Bash autosuggestions if not already installed
+    if [ ! -f "$HOME/.local/share/blesh/ble.sh" ]; then
+        log_info "Installing ble.sh for terminal autosuggestions..."
+        mkdir -p "$HOME/.local/share"
+        curl -fsSL https://github.com/akinomyoga/ble.sh/releases/download/nightly/ble-nightly.tar.xz | tar -C /tmp -xJf - 2>/dev/null && \
+            rm -rf "$HOME/.local/share/blesh" && mv /tmp/ble-nightly "$HOME/.local/share/blesh" 2>/dev/null && \
+            log_success "ble.sh installed successfully." || log_warn "Could not install ble.sh automatically."
     fi
 
     log_success "~/.config and root dotfiles deployed successfully."

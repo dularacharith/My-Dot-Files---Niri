@@ -1,5 +1,8 @@
 # .bashrc
 
+# ble.sh: Bash autosuggestions and line editor
+[[ $- == *i* ]] && [ -f "$HOME/.local/share/blesh/ble.sh" ] && source "$HOME/.local/share/blesh/ble.sh" --noattach
+
 # Source global definitions
 if [ -f /etc/bashrc ]; then
     . /etc/bashrc
@@ -33,3 +36,6 @@ export XCURSOR_SIZE=24
 if [[ $- == *i* ]]; then
     fastfetch
 fi
+
+# Attach ble.sh autosuggestions
+[[ ${BLE_VERSION-} ]] && ble-attach

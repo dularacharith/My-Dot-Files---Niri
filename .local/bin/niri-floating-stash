@@ -56,9 +56,6 @@ class NiriFloatingStasher:
         
         self.lock = threading.RLock()
         self.cmd_lock = threading.Lock()
-        self.last_unlock_transition = 0.0
-        self.dbus_loop = None
-        self.dbus_thread = None
         self.running = True
 
     def connect(self):
@@ -79,11 +76,6 @@ class NiriFloatingStasher:
         self.event_sock.sendall(b'"EventStream"\n')
 
     def close(self):
-        if self.dbus_loop:
-            try:
-                self.dbus_loop.quit()
-            except Exception:
-                pass
         with self.cmd_lock:
             try:
                 if self.cmd_sock:
@@ -138,86 +130,6 @@ class NiriFloatingStasher:
             except Exception as e:
                 log.warning(f"Error querying {req_str}: {e}")
                 return None
-
-    def trigger_unlock_transition(self):
-        now = time.time()
-        if now - self.last_unlock_transition < 1.0:
-            return
-        self.last_unlock_transition = now
-        log.info("Session unlock detected! Launching smooth unlock transition...")
-        script = os.path.expanduser("~/.local/bin/dms-unlock-transition")
-        if os.path.isfile(script):
-            try:
-                subprocess.Popen([script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception as e:
-                log.warning(f"Error launching unlock transition: {e}")
-
-    def start_dbus_monitor(self):
-        if self.dbus_thread and self.dbus_thread.is_alive():
-            return
-
-        def dbus_worker():
-            try:
-                import dbus
-                import dbus.mainloop.glib
-                from gi.repository import GLib
-
-                dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-
-                # 1. User session bus (org.gnome.ScreenSaver from DMS)
-                try:
-                    session_bus = dbus.SessionBus()
-                    def on_screensaver_active_changed(active):
-                        log.info(f"ScreenSaver ActiveChanged: {active}")
-                        if not bool(active):
-                            self.trigger_unlock_transition()
-
-                    session_bus.add_signal_receiver(
-                        on_screensaver_active_changed,
-                        signal_name="ActiveChanged",
-                        dbus_interface="org.gnome.ScreenSaver"
-                    )
-                    log.info("Registered listener for org.gnome.ScreenSaver ActiveChanged")
-                except Exception as e:
-                    log.warning(f"Failed to connect to SessionBus for ScreenSaver: {e}")
-
-                # 2. System bus (systemd-logind Session Unlock and LockedHint)
-                try:
-                    system_bus = dbus.SystemBus()
-                    def on_logind_unlock(*args, **kwargs):
-                        log.info("Systemd-logind Unlock signal received")
-                        self.trigger_unlock_transition()
-
-                    def on_logind_props(interface, changed_props, invalidated_props, path=None):
-                        if interface == "org.freedesktop.login1.Session" and "LockedHint" in changed_props:
-                            locked = bool(changed_props["LockedHint"])
-                            log.info(f"Systemd-logind LockedHint changed: {locked}")
-                            if not locked:
-                                self.trigger_unlock_transition()
-
-                    system_bus.add_signal_receiver(
-                        on_logind_unlock,
-                        signal_name="Unlock",
-                        dbus_interface="org.freedesktop.login1.Session"
-                    )
-                    system_bus.add_signal_receiver(
-                        on_logind_props,
-                        signal_name="PropertiesChanged",
-                        dbus_interface="org.freedesktop.DBus.Properties",
-                        arg0="org.freedesktop.login1.Session",
-                        path_keyword="path"
-                    )
-                    log.info("Registered listener for systemd-logind Unlock and LockedHint")
-                except Exception as e:
-                    log.warning(f"Failed to connect to SystemBus for logind: {e}")
-
-                self.dbus_loop = GLib.MainLoop()
-                self.dbus_loop.run()
-            except Exception as e:
-                log.error(f"Error in DBus monitor worker: {e}", exc_info=True)
-
-        self.dbus_thread = threading.Thread(target=dbus_worker, daemon=True, name="dbus-monitor")
-        self.dbus_thread.start()
 
     MEDIA_APP_PATTERNS = (
         "vlc",
@@ -470,7 +382,6 @@ class NiriFloatingStasher:
 
     def run(self):
         log.info("Starting Niri Floating Window Stash Daemon...")
-        self.start_dbus_monitor()
         while self.running:
             try:
                 self.connect()

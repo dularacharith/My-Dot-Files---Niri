@@ -165,38 +165,38 @@ animations {
     }
 
     window-open {
-        duration-ms 220
-        curve "cubic-bezier" 0.05 0.9 0.1 1.05
+        duration-ms 350
+        curve "cubic-bezier" 0.05 0.9 0.1 1.0
         custom-shader r"
             vec4 open_color(vec3 coords_geo, vec3 size_geo) {
                 float p = niri_clamped_progress;
-                // Pop zoom: scales up into place with a subtle lively overshoot
-                float scale = max(0.001, 0.88 + 0.12 * niri_progress);
+                // Smooth scale-up from 85% with gentle fade-in
+                float scale = max(0.001, 0.85 + 0.15 * niri_progress);
                 vec2 coords = (coords_geo.xy - vec2(0.5, 0.5)) / scale + vec2(0.5, 0.5);
                 vec3 coords_tex = niri_geo_to_tex * vec3(coords, 1.0);
                 vec4 color = texture2D(niri_tex, coords_tex.st);
-                color *= p;
+                color *= smoothstep(0.0, 0.6, p);
                 return color;
             }
         "
     }
 
     window-close {
-        duration-ms 180
-        curve "cubic-bezier" 0.32 0.0 0.67 0.0
+        duration-ms 280
+        curve "cubic-bezier" 0.25 0.0 0.75 0.0
         custom-shader r"
             vec4 close_color(vec3 coords_geo, vec3 size_geo) {
                 float p = niri_clamped_progress;
                 float inv = 1.0 - p;
-                // Sleek sink & shrink: shrinks slightly with a gentle downward drop
-                float scale = max(0.001, 1.0 - 0.08 * p);
-                float drop_px = p * p * 30.0;
+                // Smooth shrink with downward drift and fade-out
+                float scale = max(0.001, 1.0 - 0.12 * p);
+                float drop_px = p * p * 40.0;
                 float drop_geo = drop_px / max(size_geo.y, 1.0);
                 vec2 coords = (coords_geo.xy - vec2(0.5, 0.5)) / scale + vec2(0.5, 0.5);
                 coords.y -= drop_geo;
                 vec3 coords_tex = niri_geo_to_tex * vec3(coords, 1.0);
                 vec4 color = texture2D(niri_tex, coords_tex.st);
-                color *= inv;
+                color *= smoothstep(0.0, 0.5, inv);
                 return color;
             }
         "
@@ -207,12 +207,12 @@ animations {
     }
 
     window-movement {
-        duration-ms 200
+        duration-ms 350
         curve "ease-out-cubic"
     }
 
     window-resize {
-        duration-ms 200
+        duration-ms 350
         curve "ease-out-cubic"
         custom-shader r"
             vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
@@ -225,7 +225,7 @@ animations {
                 bool is_growing = niri_curr_geo_to_next_geo[0][0] <= 1.0 && niri_curr_geo_to_next_geo[1][1] <= 1.0;
 
                 if (is_growing) {
-                    float fade = smoothstep(0.6, 0.95, niri_clamped_progress);
+                    float fade = smoothstep(0.5, 1.0, niri_clamped_progress);
                     return mix(color_prev, color_next, fade);
                 } else {
                     return mix(color_prev, color_next, niri_clamped_progress);
@@ -235,20 +235,20 @@ animations {
     }
 
     config-notification-open-close {
-        spring damping-ratio=0.65 stiffness=900 epsilon=0.001
+        spring damping-ratio=0.85 stiffness=500 epsilon=0.001
     }
 
     screenshot-ui-open {
-        duration-ms 180
-        curve "ease-out-quad"
+        duration-ms 280
+        curve "ease-out-cubic"
     }
 
     overview-open-close {
-        spring damping-ratio=0.85 stiffness=700 epsilon=0.0001
+        spring damping-ratio=0.90 stiffness=380 epsilon=0.0001
     }
 
     recent-windows-close {
-        spring damping-ratio=0.85 stiffness=700 epsilon=0.001
+        spring damping-ratio=0.90 stiffness=380 epsilon=0.001
     }
 }
 // Window rules let you adjust behavior for individual windows.

@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""
+dms-unlock-transition:
+Provides a smooth dissolution transition from the lock screen back into the active desktop session.
+"""
+
+import sys
+import time
+import os
+import subprocess
+import cairo
+
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('GtkLayerShell', '0.1')
+from gi.repository import Gtk, GtkLayerShell, GdkPixbuf, Gdk, GLib
+
+def get_current_wallpaper():
+    try:
+        res = subprocess.check_output(['/usr/bin/dms', 'ipc', 'call', 'wallpaper', 'get'], text=True, timeout=1).strip()
+        if res and os.path.isfile(res):
+            return res
+    except Exception:
+        pass
+    wp_dir = os.path.expanduser('~/Pictures/Wallpapers/Landscape')
+    if os.path.isdir(wp_dir):
+        files = sorted(os.listdir(wp_dir))
+        for f in files:
+            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                return os.path.join(wp_dir, f)
+    return None
+
+def main():
+    display = Gdk.Display.get_default()
+    if not display:
+        return
+
+    wp_path = get_current_wallpaper()
+    n_monitors = display.get_n_monitors()
+    if n_monitors == 0:
+        return
+
+    windows = []
+    pixbufs = []
+    duration = 0.35  # 350 ms
+
+    # Pre-load pixbufs per monitor resolution
+    for i in range(n_monitors):
+        m = display.get_monitor(i)
+        geom = m.get_geometry()
+        w, h = geom.width, geom.height
+        pb = None
+        if wp_path and os.path.exists(wp_path):
+            try:
+                pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(wp_path, w, h, False)
+            except Exception:
+                pb = None
+        pixbufs.append((m, pb, w, h))
+
+    # Shared alpha state
+    alpha_state = {'alpha': 1.0}
+
+    for idx, (monitor, pb, w, h) in enumerate(pixbufs):
+        win = Gtk.Window()
+        GtkLayerShell.init_for_window(win)
+        GtkLayerShell.set_layer(win, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_monitor(win, monitor)
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.TOP, True)
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.BOTTOM, True)
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.LEFT, True)
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.RIGHT, True)
+        GtkLayerShell.set_exclusive_zone(win, -1)
+        GtkLayerShell.set_keyboard_mode(win, GtkLayerShell.KeyboardMode.NONE)
+
+        screen = win.get_screen()
+        visual = screen.get_rgba_visual()
+        if visual:
+            win.set_visual(visual)
+        win.set_app_paintable(True)
+
+        def make_draw_handler(pixbuf):
+            def on_draw(widget, cr):
+                cr.set_operator(cairo.OPERATOR_SOURCE)
+                a = alpha_state['alpha']
+                if pixbuf:
+                    Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
+                    cr.paint_with_alpha(a)
+                else:
+                    cr.set_source_rgba(0, 0, 0, a)
+                    cr.paint()
+                return False
+            return on_draw
+
+        da = Gtk.DrawingArea()
+        da.connect('draw', make_draw_handler(pb))
+        win.add(da)
+        win.show_all()
+        windows.append((win, da))
+
+    start_time = time.time()
+
+    def on_tick():
+        elapsed = time.time() - start_time
+        progress = min(1.0, elapsed / duration)
+        # smooth cubic ease-out
+        alpha_state['alpha'] = (1.0 - progress) ** 2
+
+        for win, da in windows:
+            da.queue_draw()
+
+        if progress >= 1.0:
+            for win, da in windows:
+                win.destroy()
+            Gtk.main_quit()
+            return False
+        return True
+
+    GLib.timeout_add(16, on_tick)
+    Gtk.main()
+
+if __name__ == '__main__':
+    main()

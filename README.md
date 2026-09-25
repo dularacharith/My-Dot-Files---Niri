@@ -249,6 +249,7 @@ My-Dot-Files---Niri/
 │   ├── bin/
 │   │   ├── niri-floating-stash     # Python daemon for floating auto-stash & zero-delay bar sync
 │   │   ├── wallpaper-ctl           # Wallpaper management script
+│   │   ├── win-snipping-tool       # Windows-style Snipping Tool launcher
 │   │   └── packettracer            # Cisco Packet Tracer Wayland launcher wrapper
 │   ├── share/
 │   │   ├── applications/           # Desktop entries (Chrome, Snipping Tool, Cisco Packet Tracer)

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Windows-style Snipping Tool Launcher
+exec python3 "${HOME}/.local/share/win-snipping-tool/snip_main.py" "$@"

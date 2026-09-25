@@ -183,6 +183,7 @@ deploy_local_share() {
 
     mkdir -p "$HOME/.local/share/win-snipping-tool"
     mkdir -p "$HOME/.local/share/applications"
+    mkdir -p "$HOME/.local/bin"
 
     cp -r "$SCRIPT_DIR/.local/share/win-snipping-tool/"* "$HOME/.local/share/win-snipping-tool/"
     chmod +x "$HOME/.local/share/win-snipping-tool/snip_main.py"

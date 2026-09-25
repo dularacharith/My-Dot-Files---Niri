@@ -52,7 +52,6 @@ class NiriFloatingStasher:
         self.was_floating = {}
         # active maximized windows
         self.maximized_window_ids = set()
-        self.bar_hidden = False
         
         self.lock = threading.RLock()
         self.cmd_lock = threading.Lock()
@@ -188,51 +187,8 @@ class NiriFloatingStasher:
 
         return False
 
-    def is_fullscreen_or_media_expanded(self, win, out_w, out_h):
-        if not win or win.get("is_floating"):
-            return False
-            
-        tile_size = win.get("layout", {}).get("tile_size")
-        if not tile_size:
-            return False
-            
-        w, h = tile_size[0], tile_size[1]
-        app_id = (win.get("app_id") or "").lower()
-        is_media = any(m in app_id for m in ("vlc", "haruna", "mpv", "celluloid", "showtime", "decibels", "totem"))
-        
-        # 1. Media player: in Niri configured as open-floating true, so non-floating means maximized/fullscreen
-        if is_media and not win.get("is_floating"):
-            return True
-            
-        # 2. Window covering the full screen without gaps (true fullscreen)
-        if abs(w - out_w) <= 2 and abs(h - out_h) <= 2:
-            return True
-            
-        return False
-
-    def hide_bar(self):
-        if not self.bar_hidden:
-            self.bar_hidden = True
-            log.info("Hiding top bar for fullscreen/expanded window")
-            try:
-                subprocess.Popen(["/usr/bin/dms", "ipc", "call", "bar", "hide", "index", "0"],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception as e:
-                log.warning(f"Error hiding bar: {e}")
-
-    def reveal_bar(self):
-        if self.bar_hidden:
-            self.bar_hidden = False
-            log.info("Revealing top bar")
-            try:
-                subprocess.Popen(["/usr/bin/dms", "ipc", "call", "bar", "reveal", "index", "0"],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception as e:
-                log.warning(f"Error revealing bar: {e}")
-
     def restore_all(self):
         with self.lock:
-            self.reveal_bar()
             if not self.stashed:
                 return
             log.info("Restoring all stashed windows before exit...")
@@ -360,25 +316,6 @@ class NiriFloatingStasher:
                         log.info(f"Stashing floating window {wid} on workspace {f_ws_id} for maximized window {f_id}")
                         self.send_action({"MoveWindowToWorkspace": {"window_id": wid, "reference": {"Index": 99}, "focus": False}})
                         self.stashed[f_id][wid] = f_ws_id
-
-            # 3. Bar visibility management
-            active_ws_ids = {ws["id"] for ws in workspaces if ws.get("is_active")}
-            should_hide_bar = False
-            for w in windows:
-                if w.get("workspace_id") in active_ws_ids:
-                    ws = ws_by_id.get(w.get("workspace_id"))
-                    out_name = ws.get("output") if ws else None
-                    out_data = outputs.get(out_name, {}) if out_name else list(outputs.values())[0] if outputs else {}
-                    out_w = out_data.get("logical", {}).get("width", 1536)
-                    out_h = out_data.get("logical", {}).get("height", 864)
-                    if self.is_fullscreen_or_media_expanded(w, out_w, out_h):
-                        should_hide_bar = True
-                        break
-
-            if should_hide_bar:
-                self.hide_bar()
-            else:
-                self.reveal_bar()
 
     def run(self):
         log.info("Starting Niri Floating Window Stash Daemon...")

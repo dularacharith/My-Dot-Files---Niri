@@ -38,16 +38,31 @@ export XCURSOR_SIZE=24
 # Reset any terminal margins from prior sessions to restore full scrollability
 printf '\033[?6l\033[r' 2>/dev/null || true
 
-# Display CharithD ASCII art on terminal launch
-if [[ $- == *i* ]]; then
+# Display CharithD ASCII art with stylized gradient divider
+_show_charithd_header() {
     if [ -f "$HOME/.config/fastfetch/charithd.txt" ]; then
         cat "$HOME/.config/fastfetch/charithd.txt"
-        echo ""
     fi
+}
+
+# Display CharithD ASCII art on terminal launch
+if [[ $- == *i* ]]; then
+    _show_charithd_header
     # Flush any buffered keystrokes and restore echo
     read -t 0.01 -n 10000 discard 2>/dev/null || true
     stty echo 2>/dev/null
 fi
+
+# Re-anchor CharithD header at top when clearing or resetting terminal
+clear() {
+    command clear "$@"
+    _show_charithd_header
+}
+
+reset() {
+    command reset "$@"
+    _show_charithd_header
+}
 
 # Modern minimalist prompt: sleek chevron, italic directory path, new-line prompt
 __set_prompt() {

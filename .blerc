@@ -106,6 +106,5 @@ ble-bind -m emacs -f 'C-i' fzf-menu-always
 ble-bind -m auto_complete -f 'TAB' fzf-menu-from-ac
 ble-bind -m auto_complete -f 'C-i' fzf-menu-from-ac
 
-
-
-
+# Re-anchor CharithD header on Ctrl+L
+ble-bind -c 'C-l' clear

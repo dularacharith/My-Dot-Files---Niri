@@ -190,10 +190,17 @@ deploy_local_share() {
         fi
     fi
 
+    # Deploy pixmaps if present
+    if [ -d "$SCRIPT_DIR/.local/share/pixmaps" ]; then
+        mkdir -p "$HOME/.local/share/pixmaps"
+        cp -r "$SCRIPT_DIR/.local/share/pixmaps/"* "$HOME/.local/share/pixmaps/"
+    fi
+
     # Install desktop entries
     cp -r "$SCRIPT_DIR/.local/share/applications/"* "$HOME/.local/share/applications/"
     sed -i "s|/home/[^/]*/.local/bin/packettracer|packettracer|g" "$HOME/.local/share/applications/CiscoPacketTracer"*.desktop 2>/dev/null || true
     update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+    gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
     # Flatpak sandbox overrides for cursor theme access
     if command -v flatpak &>/dev/null; then

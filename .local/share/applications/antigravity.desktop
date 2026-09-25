@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Antigravity
+Comment=Antigravity Application
+Exec=/opt/Antigravity/Antigravity-x64/antigravity %U
+Icon=antigravity
+Terminal=false
+Type=Application
+Categories=Utility;Development;
+StartupWMClass=antigravity
+MimeType=x-scheme-handler/antigravity;

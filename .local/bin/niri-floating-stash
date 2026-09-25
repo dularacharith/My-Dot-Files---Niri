@@ -219,6 +219,29 @@ class NiriFloatingStasher:
         self.dbus_thread = threading.Thread(target=dbus_worker, daemon=True, name="dbus-monitor")
         self.dbus_thread.start()
 
+    MEDIA_APP_PATTERNS = (
+        "vlc",
+        "haruna",
+        "mpv",
+        "celluloid",
+        "showtime",
+        "decibels",
+        "totem",
+        "picture-in-picture",
+        "zoom",
+    )
+
+    def is_exempt_from_stash(self, win):
+        if not win:
+            return True
+        if win.get("is_focused"):
+            return True
+        app_id = (win.get("app_id") or "").lower()
+        title = (win.get("title") or "").lower()
+        if any(p in app_id or p in title for p in self.MEDIA_APP_PATTERNS):
+            return True
+        return False
+
     def is_window_maximized(self, win, out_w, out_h):
         if not win or win.get("is_floating"):
             return False
@@ -413,6 +436,9 @@ class NiriFloatingStasher:
                     to_stash = []
                     for w in windows:
                         if w.get("workspace_id") == f_ws_id and w.get("is_floating") and w.get("id") != f_id:
+                            # Never stash actively focused windows or exempt apps (media players, PiP, etc.)
+                            if self.is_exempt_from_stash(w):
+                                continue
                             # Never stash sub-windows / dialogs belonging to the same application
                             if (w.get("app_id") or "").lower() == (focused.get("app_id") or "").lower():
                                 continue

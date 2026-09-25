@@ -306,6 +306,8 @@ window-rule {
 }
 window-rule {
     match app-id="vlc"
+    match app-id=r#"[Vv]lc"#
+    match app-id="org.videolan.vlc"
     match app-id="org.kde.haruna"
     match app-id="haruna"
     match app-id="mpv"
@@ -315,6 +317,7 @@ window-rule {
     match app-id="org.gnome.Decibels"
     match app-id="totem"
     open-floating true
+    open-focused true
     default-column-width { proportion 0.65; }
     default-window-height { proportion 0.65; }
 }

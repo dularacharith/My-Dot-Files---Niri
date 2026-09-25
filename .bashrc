@@ -34,7 +34,10 @@ export XCURSOR_SIZE=24
 
 # Display system info with CharithD ASCII art on terminal launch
 if [[ $- == *i* ]]; then
+    stty -echo 2>/dev/null
     fastfetch
+    read -t 0.01 -n 10000 discard 2>/dev/null || true
+    stty echo 2>/dev/null
 fi
 
 # Modern minimalist prompt: sleek chevron, italic directory path, new-line prompt

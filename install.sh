@@ -249,8 +249,8 @@ deploy_fonts() {
 
     # Apply GNOME/GTK interface fonts
     if command -v gsettings &>/dev/null; then
-        gsettings set org.gnome.desktop.interface font-name 'SF Pro Display 11' 2>/dev/null || true
-        gsettings set org.gnome.desktop.interface document-font-name 'SF Pro Text 11' 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface font-name 'SF Pro Display Medium 11' 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface document-font-name 'SF Pro Text Medium 11' 2>/dev/null || true
         gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 10' 2>/dev/null || true
         gsettings set org.gnome.desktop.wm.preferences titlebar-font 'SF Pro Display Bold 11' 2>/dev/null || true
     fi

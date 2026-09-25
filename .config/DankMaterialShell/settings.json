@@ -30,6 +30,8 @@
       "cursorHideTimeout": 0
     }
   },
+  "fontFamily": "SF Pro Display",
+  "fontWeight": 500,
   "acMonitorTimeout": 600,
   "acLockTimeout": 600,
   "acSuspendTimeout": 1800,

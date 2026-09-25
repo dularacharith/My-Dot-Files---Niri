@@ -95,15 +95,23 @@ _update_scroll_region() {
 trap '_update_scroll_region' WINCH
 trap 'printf "\033[?6l\033[r"' EXIT
 
-# Attach ble.sh autosuggestions
-[[ ${BLE_VERSION-} ]] && ble-attach
+_pin_banner() {
+    if [[ ${_banner_pinned:-0} -eq 1 ]]; then
+        local term_lines=${LINES:-$(tput lines 2>/dev/null || echo 40)}
+        if (( term_lines > 24 )); then
+            printf '\033[19;%dr\033[?6h\033[H' "$term_lines"
+        fi
+    fi
+}
 
-# Pin fastfetch banner at top: content below scrolls, banner stays fixed
+# Attach ble.sh autosuggestions with banner pinning hook
 if [[ $- == *i* ]]; then
     export _banner_pinned=1
-    _banner_top=19
-    _term_lines=$(tput lines 2>/dev/null || echo 40)
-    if (( _term_lines > 24 )); then
-        printf '\033[%d;%dr\033[?6h\033[H' "$_banner_top" "$_term_lines"
+    if [[ ${BLE_VERSION-} ]]; then
+        blehook ATTACH!=_pin_banner
+        ble-attach
+    else
+        _pin_banner
     fi
 fi
+

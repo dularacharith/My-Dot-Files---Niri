@@ -255,7 +255,35 @@ deploy_fonts() {
         gsettings set org.gnome.desktop.wm.preferences titlebar-font 'SF Pro Display Bold 11' 2>/dev/null || true
     fi
 
-    log_success "System fonts deployed and typography configured."
+    # Configure Google Chrome font settings across all profiles
+    if [ -d "$HOME/.config/google-chrome" ]; then
+        python3 -c '
+import json, glob
+
+font_config = {
+    "standard": {"Zyyy": "SF Pro Display", "Sinh": "Sinhala Sangam MN"},
+    "sansserif": {"Zyyy": "SF Pro Display", "Sinh": "Sinhala Sangam MN"},
+    "serif": {"Zyyy": "SF Pro Text", "Sinh": "Sinhala Sangam MN"},
+    "fixed": {"Zyyy": "JetBrainsMono Nerd Font", "Sinh": "Sinhala Sangam MN"}
+}
+
+for p in glob.glob("'"$HOME"'/.config/google-chrome/*/Preferences"):
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "webkit" not in data:
+            data["webkit"] = {}
+        if "webprefs" not in data["webkit"]:
+            data["webkit"]["webprefs"] = {}
+        data["webkit"]["webprefs"]["fonts"] = font_config
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+' 2>/dev/null || true
+    fi
+
+    log_success "System fonts deployed and typography configured (including Google Chrome)."
 }
 
 # ------------------------------------------------------------------------------

@@ -35,6 +35,77 @@ bleopt complete_menu_complete=1
 # fzf appearance: bordered popup, reverse layout, centered
 export FZF_DEFAULT_OPTS="--height=40% --layout=reverse --border=rounded --margin=1,2 --padding=1 --pointer='❯' --marker='✓' --color=bg+:#1e1b2e,fg+:#c084fc,hl:#38bdf8,hl+:#38bdf8,pointer:#38bdf8,marker:#a3e635,border:#3b3552,header:#938f99,prompt:#c084fc,info:#938f99"
 
+# Always show fzf menu even when there is only 1 match
+function ble/contrib/integration:fzf-menu/.select-and-insert {
+  if [[ ! $bleopt_integration_fzf_menu_enabled ]]; then
+    ble/function#push/call-top "$@"
+    return "$?"
+  fi
+
+  if ((cand_count >= 1)); then
+    local common_prefix=
+    ble/contrib/integration:fzf-menu/.get-common-prefix "${cand_cand[@]}"
+    (($?==148)) && return 148
+
+    local desc_sgr0=$_ble_term_sgr0
+    ble/color/face2sgr menu_desc_quote; local desc_sgrq=$ret
+    ble/color/face2sgr menu_desc_type; local desc_sgrt=$ret
+
+    local sep=$_ble_term_FS
+    local -a list=()
+    local i
+    for ((i=0;i<cand_count;i++)); do
+      local ACTION=${cand_pack[i]%%:*}
+      local "${_ble_complete_cand_varnames[@]/%/=}"
+      ble/complete/cand/unpack "${cand_pack[i]}"
+
+      local g=0 prefix= suffix= desc=
+      ble/function#try ble/complete/action:"$ACTION"/init-menu-item
+      (($?==148)) && return 148
+      ble/function#try ble/complete/action:"$ACTION"/get-desc
+      (($?==148)) && return 148
+
+      ble/color/g2sgr "$g"; local sgr=$ret
+      local item=$prefix$sgr$CAND$_ble_term_sgr0$suffix
+      item=${item//"$sep"/'^\'}
+      desc=${desc//"$sep"/'^\'}
+      ble/array#push list "$i$sep$item$_ble_term_sgr0$sep - $desc$_ble_term_sgr0"
+    done
+
+    ble/term/leave-for-widget
+    local index
+    ble/util/assign index 'ble/contrib/integration:fzf-menu/SELECTOR "${list[@]}"'
+    ble/term/enter-for-widget
+    ble/textarea#invalidate
+
+    if [[ $index ]]; then
+      cand_count=1
+      cand_cand=("${cand_cand[index]}")
+      cand_word=("${cand_word[index]}")
+      cand_pack=("${cand_pack[index]}")
+      ble/complete/insert-common
+    else
+      cand_count=0
+    fi
+  fi
+
+  return 148
+}
+
+# Bind Tab to always open fzf menu (in both normal and auto-complete modes)
+function ble/widget/fzf-menu-always {
+  local bleopt_integration_fzf_menu_enabled=1
+  ble/widget/complete show_menu
+}
+function ble/widget/fzf-menu-from-ac {
+  ble/widget/auto_complete/cancel
+  ble/widget/fzf-menu-always
+}
+ble-bind -m emacs -f 'TAB' fzf-menu-always
+ble-bind -m emacs -f 'C-i' fzf-menu-always
+ble-bind -m auto_complete -f 'TAB' fzf-menu-from-ac
+ble-bind -m auto_complete -f 'C-i' fzf-menu-from-ac
+
 # Unpin pinned header on Ctrl+L and restore full terminal
 function ble/widget/unpin-and-clear-screen {
     export _banner_pinned=0
@@ -42,4 +113,5 @@ function ble/widget/unpin-and-clear-screen {
     ble/widget/clear-screen
 }
 ble-bind -f 'C-l' unpin-and-clear-screen
+
 

@@ -37,19 +37,27 @@ if [[ $- == *i* ]]; then
     fastfetch
 fi
 
-# Minimal modern prompt: "> " in home, "> path" in directories
+# Modern minimalist prompt: sleek chevron, italic directory path, new-line prompt
 __set_prompt() {
-    local dir=""
+    local last_status=$?
+    local chevron_color="\[\033[1;38;2;56;189;248m\]" # cyan
+    if [ $last_status -ne 0 ]; then
+        chevron_color="\[\033[1;38;2;248;113;113m\]" # coral red on error
+    fi
+
     if [ "$PWD" != "$HOME" ]; then
-        dir=' \w'
+        local branch
+        branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        local git_info=""
+        if [ -n "$branch" ]; then
+            git_info=" \[\033[0;38;2;129;140;248m\]($branch)\[\033[0m\]"
+        fi
+        # Line 1: Italic path in soft violet + git branch
+        # Line 2: Modern chevron prompt on new line
+        PS1="\[\033[3m\033[38;2;192;132;252m\]\w\[\033[0m\]${git_info}\n${chevron_color}❯\[\033[0m\] "
+    else
+        PS1="${chevron_color}❯\[\033[0m\] "
     fi
-    local branch
-    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-    local git_info=""
-    if [ -n "$branch" ]; then
-        git_info=" \[\033[38;2;129;140;248m\]($branch)\[\033[0m\]"
-    fi
-    PS1="\[\033[38;2;56;189;248m\033[1m\]>\[\033[0m\]\[\033[38;2;192;132;252m\]${dir}\[\033[0m\]${git_info} "
 }
 PROMPT_COMMAND=__set_prompt
 

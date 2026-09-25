@@ -1,0 +1,4 @@
+#!/bin/sh
+# Force VLC to run natively under Wayland to enable seamless Drag and Drop
+# across Wayland clients (e.g., Nautilus) and eliminate XWayland DnD isolation.
+exec env -u DISPLAY QT_QPA_PLATFORM=wayland /usr/bin/vlc "$@"

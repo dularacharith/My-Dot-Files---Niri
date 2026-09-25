@@ -1614,7 +1614,7 @@ qt-video-autoresize=0
 #qt-name-in-title=1
 
 # Show a controller in fullscreen mode (boolean)
-#qt-fs-controller=1
+qt-fs-controller=0
 
 # Save the recently played items in the menu (boolean)
 #qt-recentplay=1
@@ -4213,7 +4213,7 @@ aout=pulse
 #embedded-video=1
 
 #  (boolean)
-xlib=1
+xlib=0
 
 # Drop late frames (boolean)
 #drop-late-frames=1

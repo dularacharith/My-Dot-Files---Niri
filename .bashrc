@@ -54,9 +54,9 @@ __set_prompt() {
         fi
         # Line 1: Dim italic path in muted slate-violet + dim git branch
         # Line 2: Modern chevron prompt on new line
-        PS1="\[\033[2;3;38;2;140;135;160m\]\w\[\033[0m\]${git_info}\n${chevron_color}❯\[\033[0m\] "
+        PS1="\n\[\033[2;3;38;2;140;135;160m\]\w\[\033[0m\]${git_info}\n${chevron_color}❯\[\033[0m\] "
     else
-        PS1="${chevron_color}❯\[\033[0m\] "
+        PS1="\n${chevron_color}❯\[\033[0m\] "
     fi
 }
 PROMPT_COMMAND=__set_prompt

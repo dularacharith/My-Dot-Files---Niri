@@ -161,7 +161,7 @@ prefer-no-csd
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 animations {
     workspace-switch {
-        spring damping-ratio=0.90 stiffness=380 epsilon=0.0001
+        spring damping-ratio=0.92 stiffness=280 epsilon=0.0001
     }
 
     window-open {
@@ -203,7 +203,7 @@ animations {
     }
 
     horizontal-view-movement {
-        spring damping-ratio=0.90 stiffness=380 epsilon=0.0001
+        spring damping-ratio=0.92 stiffness=280 epsilon=0.0001
     }
 
     window-movement {

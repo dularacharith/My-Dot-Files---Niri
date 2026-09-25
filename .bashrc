@@ -50,11 +50,11 @@ __set_prompt() {
         branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
         local git_info=""
         if [ -n "$branch" ]; then
-            git_info=" \[\033[0;38;2;129;140;248m\]($branch)\[\033[0m\]"
+            git_info=" \[\033[2;38;2;114;122;160m\]($branch)\[\033[0m\]"
         fi
-        # Line 1: Italic path in soft violet + git branch
+        # Line 1: Dim italic path in muted slate-violet + dim git branch
         # Line 2: Modern chevron prompt on new line
-        PS1="\[\033[3m\033[38;2;192;132;252m\]\w\[\033[0m\]${git_info}\n${chevron_color}❯\[\033[0m\] "
+        PS1="\[\033[2;3;38;2;140;135;160m\]\w\[\033[0m\]${git_info}\n${chevron_color}❯\[\033[0m\] "
     else
         PS1="${chevron_color}❯\[\033[0m\] "
     fi

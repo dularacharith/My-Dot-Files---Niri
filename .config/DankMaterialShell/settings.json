@@ -15,7 +15,7 @@
   "networkPreference": "wifi",
   "iconThemePerMode": true,
   "cursorSettings": {
-    "theme": "macOS",
+    "theme": "macOS-White",
     "size": 24,
     "niri": {
       "hideWhenTyping": false,
@@ -100,7 +100,7 @@
       "fontScale": 1.08,
       "iconScale": 1,
       "autoHide": true,
-      "autoHideStrict": true,
+      "autoHideStrict": false,
       "autoHideDelay": 400,
       "showOnWindowsOpen": false,
       "openOnOverview": false,

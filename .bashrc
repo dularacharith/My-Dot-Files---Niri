@@ -35,9 +35,15 @@ export PATH="$PATH:/opt/Antigravity/Antigravity-x64"
 export XCURSOR_THEME="macOS"
 export XCURSOR_SIZE=24
 
-# Display system info with CharithD ASCII art on terminal launch
+# Reset any terminal margins from prior sessions to restore full scrollability
+printf '\033[?6l\033[r' 2>/dev/null || true
+
+# Display CharithD ASCII art on terminal launch
 if [[ $- == *i* ]]; then
-    fastfetch
+    if [ -f "$HOME/.config/fastfetch/charithd.txt" ]; then
+        cat "$HOME/.config/fastfetch/charithd.txt"
+        echo ""
+    fi
     # Flush any buffered keystrokes and restore echo
     read -t 0.01 -n 10000 discard 2>/dev/null || true
     stty echo 2>/dev/null
@@ -67,51 +73,8 @@ __set_prompt() {
 }
 PROMPT_COMMAND=__set_prompt
 
-# Override clear and reset to unpin banner and restore full terminal screen
-clear() {
-    export _banner_pinned=0
-    printf '\033[?6l\033[r'
-    command clear "$@"
-}
-
-reset() {
-    export _banner_pinned=0
-    printf '\033[?6l\033[r'
-    command reset "$@"
-}
-
-# Update scrolling region if window is resized while banner is pinned
-_update_scroll_region() {
-    if [[ ${_banner_pinned:-0} -eq 1 ]]; then
-        local term_lines=${LINES:-$(tput lines 2>/dev/null || echo 40)}
-        if (( term_lines > 24 )); then
-            printf '\0337\033[19;%dr\033[?6h\0338' "$term_lines"
-        else
-            export _banner_pinned=0
-            printf '\033[?6l\033[r'
-        fi
-    fi
-}
-trap '_update_scroll_region' WINCH
-trap 'printf "\033[?6l\033[r"' EXIT
-
-_pin_banner() {
-    if [[ ${_banner_pinned:-0} -eq 1 ]]; then
-        local term_lines=${LINES:-$(tput lines 2>/dev/null || echo 40)}
-        if (( term_lines > 24 )); then
-            printf '\033[19;%dr\033[?6h\033[H' "$term_lines"
-        fi
-    fi
-}
-
-# Attach ble.sh autosuggestions with banner pinning hook
-if [[ $- == *i* ]]; then
-    export _banner_pinned=1
-    if [[ ${BLE_VERSION-} ]]; then
-        blehook ATTACH!=_pin_banner
-        ble-attach
-    else
-        _pin_banner
-    fi
+# Attach ble.sh autosuggestions
+if [[ $- == *i* ]] && [[ ${BLE_VERSION-} ]]; then
+    ble-attach
 fi
 

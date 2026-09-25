@@ -106,12 +106,6 @@ ble-bind -m emacs -f 'C-i' fzf-menu-always
 ble-bind -m auto_complete -f 'TAB' fzf-menu-from-ac
 ble-bind -m auto_complete -f 'C-i' fzf-menu-from-ac
 
-# Unpin pinned header on Ctrl+L and restore full terminal
-function ble/widget/unpin-and-clear-screen {
-    export _banner_pinned=0
-    printf '\033[?6l\033[r'
-    ble/widget/clear-screen
-}
-ble-bind -f 'C-l' unpin-and-clear-screen
+
 
 

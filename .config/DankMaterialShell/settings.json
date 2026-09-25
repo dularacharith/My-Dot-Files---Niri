@@ -5,7 +5,8 @@
   "mouseNaturalScroll": true,
   "touchpadDisableWhileTyping": false,
   "touchpadScrollFactor": 0.5,
-  "animationSpeed": 3,
+  "animationSpeed": 4,
+  "syncComponentAnimationSpeeds": false,
   "blurLayerOutlineOpacity": 0.14,
   "blurBorderOpacity": 0.37,
   "systemTrayIconTintMode": "monochrome",
@@ -98,7 +99,7 @@
       "iconScale": 1,
       "autoHide": true,
       "autoHideStrict": true,
-      "autoHideDelay": 600,
+      "autoHideDelay": 400,
       "showOnWindowsOpen": false,
       "openOnOverview": false,
       "visible": true,
@@ -145,8 +146,5 @@
     "hslLightness": 1,
     "valid": true
   },
-  "configVersion": 18,
-  "syncComponentAnimationSpeeds": false,
-  "popoutAnimationSpeed": 1,
-  "modalAnimationSpeed": 1
+  "configVersion": 18
 }

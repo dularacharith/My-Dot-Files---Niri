@@ -40,6 +40,11 @@ Designed for peak productivity, aesthetic elegance, and seamless multitasking. F
 - **Universal Cursor & HiDPI Consistency**:
   - macOS cursor theme synchronized seamlessly across Wayland, XWayland (via `xrdb` and `xwayland-satellite`), GTK 2/3/4, Qt 5/6, and Flatpak apps with consistent 24px scaling.
 
+- **System Typography & Multilingual Precision**:
+  - **SF Pro Display / Text**: Apple's San Francisco Pro configured as system default sans-serif font across desktop UI, GTK, Qt, and browser interfaces.
+  - **Sinhala Sangam MN**: Apple's native Sinhala font configured with universal fontconfig fallbacks across all browsers (Chrome, Firefox, WebKit) and desktop apps, providing elegant typographic rendering for Sinhala script.
+  - **JetBrainsMono Nerd Font**: Modern developer monospace font powering Kitty and Ghostty terminals.
+
 ---
 
 ## ⌨️ Keybindings Cheat Sheet

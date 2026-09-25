@@ -108,6 +108,7 @@ backup_existing() {
         "danksearch"
         "gtk-3.0"
         "gtk-4.0"
+        "fontconfig"
         "fish"
         "zsh"
         "vlc"
@@ -220,7 +221,45 @@ deploy_local_share() {
 }
 
 # ------------------------------------------------------------------------------
-# 6. Cisco Packet Tracer Canvas Fix Library
+# 6. Deploy System Fonts (SF Pro, Sinhala Sangam MN, JetBrainsMono)
+# ------------------------------------------------------------------------------
+deploy_fonts() {
+    log_info "Deploying system & desktop fonts..."
+
+    mkdir -p "$HOME/.local/share/fonts"
+
+    # Deploy bundled fonts (Sinhala Sangam MN) if present in repo
+    if [ -d "$SCRIPT_DIR/.local/share/fonts" ]; then
+        cp -r "$SCRIPT_DIR/.local/share/fonts/"* "$HOME/.local/share/fonts/" 2>/dev/null || true
+    fi
+
+    # Install SF Pro fonts if not present
+    if [ ! -d "$HOME/.local/share/fonts/SFPro" ] || [ -z "$(ls -A "$HOME/.local/share/fonts/SFPro" 2>/dev/null)" ]; then
+        log_info "Downloading SF Pro fonts..."
+        mkdir -p "$HOME/.local/share/fonts/SFPro"
+        git clone --depth 1 https://github.com/sahibjotsaggu/San-Francisco-Pro-Fonts /tmp/sf-pro-repo 2>/dev/null && \
+            cp /tmp/sf-pro-repo/*.otf /tmp/sf-pro-repo/*.ttf "$HOME/.local/share/fonts/SFPro/" 2>/dev/null && \
+            rm -rf /tmp/sf-pro-repo || log_warn "Could not download SF Pro fonts automatically."
+    fi
+
+    # Rebuild font cache
+    if command -v fc-cache &>/dev/null; then
+        fc-cache -fv "$HOME/.local/share/fonts" 2>/dev/null || true
+    fi
+
+    # Apply GNOME/GTK interface fonts
+    if command -v gsettings &>/dev/null; then
+        gsettings set org.gnome.desktop.interface font-name 'SF Pro Display 11' 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface document-font-name 'SF Pro Text 11' 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 10' 2>/dev/null || true
+        gsettings set org.gnome.desktop.wm.preferences titlebar-font 'SF Pro Display Bold 11' 2>/dev/null || true
+    fi
+
+    log_success "System fonts deployed and typography configured."
+}
+
+# ------------------------------------------------------------------------------
+# 7. Cisco Packet Tracer Canvas Fix Library
 # ------------------------------------------------------------------------------
 build_packet_tracer_fix() {
     if [ -d "$SCRIPT_DIR/.local/src/pt_canvas_fix" ]; then
@@ -239,7 +278,7 @@ build_packet_tracer_fix() {
 }
 
 # ------------------------------------------------------------------------------
-# 7. Install Wallpapers
+# 8. Install Wallpapers
 # ------------------------------------------------------------------------------
 deploy_wallpapers() {
     log_info "Deploying wallpapers..."
@@ -252,7 +291,7 @@ deploy_wallpapers() {
 }
 
 # ------------------------------------------------------------------------------
-# 8. Setup Systemd User Services
+# 9. Setup Systemd User Services
 # ------------------------------------------------------------------------------
 setup_systemd() {
     log_info "Configuring systemd user services..."
@@ -273,7 +312,7 @@ setup_systemd() {
 }
 
 # ------------------------------------------------------------------------------
-# 9. Main Routine
+# 10. Main Routine
 # ------------------------------------------------------------------------------
 main() {
     check_dependencies
@@ -281,6 +320,7 @@ main() {
     deploy_configs
     deploy_binaries
     deploy_local_share
+    deploy_fonts
     build_packet_tracer_fix
     deploy_wallpapers
     setup_systemd
@@ -298,6 +338,7 @@ main() {
     echo "  - Wallpaper Controller: wallpaper-ctl (next, prev, random)"
     echo "  - Cisco Packet Tracer canvas fix shim (embedded note editing)"
     echo "  - Ghostty, Kitty, Alacritty, Swaylock, Cava, Fish, and Zsh configs"
+    echo "  - Typography: SF Pro Display system-wide & Sinhala Sangam MN for Sinhala"
     echo ""
     echo -e "${CYAN}To reload Niri right now:${NC}"
     echo "  niri msg action load-config-file"

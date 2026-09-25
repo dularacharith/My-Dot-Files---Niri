@@ -3,6 +3,12 @@
 # Instant autosuggestions as you type
 bleopt complete_auto_delay=0
 
+# Only suggest history entries whose arguments (paths) are valid from the current directory
+bleopt complete_auto_history=
+
+# Prioritize completion-based suggestions over history
+bleopt complete_auto_complete=1
+
 # Syntax highlighting
 bleopt highlight_syntax=1
 

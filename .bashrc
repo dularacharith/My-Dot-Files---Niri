@@ -32,7 +32,7 @@ unset rc
 export PATH="$PATH:/opt/Antigravity/Antigravity-x64"
 
 # Cursor theme configuration
-export XCURSOR_THEME="macOS"
+export XCURSOR_THEME="macOS-White"
 export XCURSOR_SIZE=24
 
 # Reset any terminal margins from prior sessions to restore full scrollability

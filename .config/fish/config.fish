@@ -4,5 +4,5 @@ if status is-interactive
 end
 
 # Cursor theme configuration
-set -gx XCURSOR_THEME macOS
+set -gx XCURSOR_THEME macOS-White
 set -gx XCURSOR_SIZE 24

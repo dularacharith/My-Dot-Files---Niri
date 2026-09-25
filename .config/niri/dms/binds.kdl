@@ -133,7 +133,7 @@ binds {
     Mod+D hotkey-overlay-title="Open zed editor" { spawn "zed"; }
     Mod+Return { spawn "kitty"; }
     Mod+S { spawn "flatpak" "run" "com.spotify.Client"; }
-    Mod+Alt+L repeat=false hotkey-overlay-title="Lock Screen" { spawn "dms" "ipc" "call" "lock" "lock"; }
+    Mod+Alt+L repeat=false hotkey-overlay-title="Lock Screen" { spawn-sh "niri msg action do-screen-transition --delay-ms 200; dms ipc call lock lock"; }
     Super+Alt+S allow-when-locked=true hotkey-overlay-title="Orca" { spawn-sh "pkill orca || exec orca"; }
     Super+E { spawn "nautilus"; }
     XF86AudioStop allow-when-locked=true { spawn-sh "playerctl stop"; }

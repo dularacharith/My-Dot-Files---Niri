@@ -47,5 +47,26 @@ keybind = shift+enter=text:\n
 # Rando stuff
 gtk-single-instance = true
 
-# Dank color generation
-theme = dankcolors
+# Modern dark cyber color palette matching CharithD theme
+background = #121118
+foreground = #e6e0e9
+cursor-color = #38bdf8
+selection-background = #4a3b69
+selection-foreground = #ffffff
+
+palette = 0=#1a1823
+palette = 1=#f87171
+palette = 2=#4ade80
+palette = 3=#facc15
+palette = 4=#818cf8
+palette = 5=#c084fc
+palette = 6=#38bdf8
+palette = 7=#e2e8f0
+palette = 8=#625d70
+palette = 9=#fca5a5
+palette = 10=#86efac
+palette = 11=#fde047
+palette = 12=#a5b4fc
+palette = 13=#d8b4fe
+palette = 14=#7dd3fc
+palette = 15=#ffffff

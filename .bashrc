@@ -83,10 +83,11 @@ reset() {
 # Update scrolling region if window is resized while banner is pinned
 _update_scroll_region() {
     if [[ ${_banner_pinned:-0} -eq 1 ]]; then
-        if (( LINES > 24 )); then
-            printf '\0337\033[19;%dr\0338' "$LINES"
+        local term_lines=${LINES:-$(tput lines 2>/dev/null || echo 40)}
+        if (( term_lines > 24 )); then
+            printf '\0337\033[19;%dr\033[?6h\0338' "$term_lines"
         else
-            _banner_pinned=0
+            export _banner_pinned=0
             printf '\033[?6l\033[r'
         fi
     fi
@@ -101,7 +102,8 @@ trap 'printf "\033[?6l\033[r"' EXIT
 if [[ $- == *i* ]]; then
     export _banner_pinned=1
     _banner_top=19
-    if (( LINES > 24 )); then
-        printf '\033[%d;%dr\033[?6h\033[H' "$_banner_top" "$LINES"
+    _term_lines=$(tput lines 2>/dev/null || echo 40)
+    if (( _term_lines > 24 )); then
+        printf '\033[%d;%dr\033[?6h\033[H' "$_banner_top" "$_term_lines"
     fi
 fi

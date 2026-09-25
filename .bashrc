@@ -38,18 +38,6 @@ export XCURSOR_SIZE=24
 # Reset any terminal margins from prior sessions to restore full scrollability
 printf '\033[?6l\033[r' 2>/dev/null || true
 
-# Attach to Kitty header lifecycle pipe so header window closes when shell exits
-if [[ -n "$KITTY_PID" && "${IS_KITTY_MAIN:-0}" -eq 1 ]]; then
-    _kitty_fifo="/tmp/kitty_header_${KITTY_PID}.fifo"
-    for _ in {1..20}; do
-        [[ -p "$_kitty_fifo" ]] && break
-        sleep 0.05
-    done
-    if [[ -p "$_kitty_fifo" ]]; then
-        exec 9>"$_kitty_fifo" 2>/dev/null
-    fi
-fi
-
 # Display CharithD ASCII art with stylized gradient divider
 _show_charithd_header() {
     if [ -f "$HOME/.config/fastfetch/charithd.txt" ]; then
@@ -57,29 +45,23 @@ _show_charithd_header() {
     fi
 }
 
-# Display CharithD ASCII art on terminal launch (if not running in Kitty pinned header setup)
+# Display CharithD ASCII art on terminal launch
 if [[ $- == *i* ]]; then
-    if [[ "${IS_KITTY_MAIN:-0}" -ne 1 && "${IS_KITTY_HEADER:-0}" -ne 1 ]]; then
-        _show_charithd_header
-    fi
+    _show_charithd_header
     # Flush any buffered keystrokes and restore echo
     read -t 0.01 -n 10000 discard 2>/dev/null || true
     stty echo 2>/dev/null
 fi
 
-# Re-anchor CharithD header at top when clearing or resetting terminal (for standalone shells)
+# Re-anchor CharithD header at top when clearing or resetting terminal
 clear() {
     command clear "$@"
-    if [[ "${IS_KITTY_MAIN:-0}" -ne 1 ]]; then
-        _show_charithd_header
-    fi
+    _show_charithd_header
 }
 
 reset() {
     command reset "$@"
-    if [[ "${IS_KITTY_MAIN:-0}" -ne 1 ]]; then
-        _show_charithd_header
-    fi
+    _show_charithd_header
 }
 
 # Modern minimalist prompt: sleek chevron, italic directory path, new-line prompt

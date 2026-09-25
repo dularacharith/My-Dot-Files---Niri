@@ -5,6 +5,7 @@
   "mouseNaturalScroll": true,
   "touchpadDisableWhileTyping": false,
   "touchpadScrollFactor": 0.5,
+  "animationSpeed": 2,
   "blurLayerOutlineOpacity": 0.14,
   "blurBorderOpacity": 0.37,
   "systemTrayIconTintMode": "monochrome",
@@ -144,6 +145,5 @@
     "hslLightness": 1,
     "valid": true
   },
-  "configVersion": 18,
-  "animationSpeed": 3
+  "configVersion": 18
 }

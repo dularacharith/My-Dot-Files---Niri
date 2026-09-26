@@ -305,6 +305,14 @@ window-rule {
     open-floating true
 }
 window-rule {
+    match app-id="vlc" title=r#"^vlc$"#
+    match app-id=r#"[Vv]lc"# title=r#"^vlc$"#
+    match app-id="org.videolan.vlc" title=r#"^vlc$"#
+    open-floating true
+    open-focused false
+    default-floating-position x=0 y=30 relative-to="bottom"
+}
+window-rule {
     match app-id="vlc"
     match app-id=r#"[Vv]lc"#
     match app-id="org.videolan.vlc"
@@ -316,10 +324,10 @@ window-rule {
     match app-id="org.gnome.Showtime"
     match app-id="org.gnome.Decibels"
     match app-id="totem"
+    exclude title=r#"^vlc$"#
     open-floating true
     open-focused true
     default-column-width { proportion 0.65; }
-    default-window-height { proportion 0.65; }
 }
 window-rule {
     match app-id="PacketTracer"

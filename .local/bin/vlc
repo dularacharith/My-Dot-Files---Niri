@@ -1,4 +1,16 @@
 #!/bin/sh
 # Force VLC to run natively under Wayland to enable seamless Drag and Drop
 # across Wayland clients (e.g., Nautilus) and eliminate XWayland DnD isolation.
-exec env -u DISPLAY QT_QPA_PLATFORM=wayland /usr/bin/vlc "$@"
+
+export LD_PRELOAD="/home/dularacharith/.local/lib/vlc_wayland_fix.so${LD_PRELOAD:+:$LD_PRELOAD}"
+export QT_QPA_PLATFORM=wayland
+
+# Run VLC
+env -u DISPLAY /usr/bin/vlc "$@" &
+VLC_PID=$!
+
+# Run fullscreen controller positioner for this VLC session
+/home/dularacharith/.local/lib/vlc_fsc_positioner.py "$VLC_PID" >/dev/null 2>&1 &
+
+wait "$VLC_PID"
+exit $?

@@ -1605,7 +1605,7 @@ qt-minimal-view=1
 #qt-opacity=1.000000
 
 # Fullscreen controller opacity between 0.1 and 1 (float)
-#qt-fs-opacity=0.800000
+qt-fs-opacity=1.000000
 
 # Resize interface to the native video size (boolean)
 qt-video-autoresize=0
@@ -1614,7 +1614,7 @@ qt-video-autoresize=0
 #qt-name-in-title=1
 
 # Show a controller in fullscreen mode (boolean)
-qt-fs-controller=0
+qt-fs-controller=1
 
 # Save the recently played items in the menu (boolean)
 #qt-recentplay=1

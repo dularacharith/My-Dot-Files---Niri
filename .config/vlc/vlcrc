@@ -1570,7 +1570,7 @@ freetype-font=Adwaita Sans
 [skins2] # Skinnable Interface
 
 # Skin to use (string)
-#skins2-last=
+skins2-last=/home/dularacharith/.local/share/vlc/skins2/MinimalX/theme.xml
 
 # Config of last used skin (string)
 #skins2-config=
@@ -1587,7 +1587,7 @@ freetype-font=Adwaita Sans
 [qt] # Qt interface
 
 # Start in minimal view (without menus) (boolean)
-qt-minimal-view=0
+#qt-minimal-view=0
 
 # Systray icon (boolean)
 #qt-system-tray=1
@@ -4699,7 +4699,7 @@ metadata-network-access=1
 #stats=1
 
 # Interface module (string)
-#intf=
+intf=skins2
 
 # Extra interface modules (string)
 #extraintf=

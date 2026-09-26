@@ -136,6 +136,11 @@ deploy_configs() {
         sed -i "s|/home/[^/]*|$HOME|g" "$HOME/.config/danksearch/config.toml"
     fi
 
+    # Replace personal username in vlcrc skin path if present
+    if [ -f "$HOME/.config/vlc/vlcrc" ]; then
+        sed -i "s|/home/[^/]*/.local/share/vlc|$HOME/.local/share/vlc|g" "$HOME/.config/vlc/vlcrc"
+    fi
+
     # Deploy root dotfiles (.Xresources, .Xdefaults, .xprofile, .gtkrc-2.0, .bashrc, .blerc, .icons)
     for f in .Xresources .Xdefaults .xprofile .gtkrc-2.0 .bashrc .blerc; do
         if [ -f "$SCRIPT_DIR/$f" ]; then
@@ -208,6 +213,12 @@ deploy_local_share() {
     if [ -d "$SCRIPT_DIR/.local/share/pixmaps" ]; then
         mkdir -p "$HOME/.local/share/pixmaps"
         cp -r "$SCRIPT_DIR/.local/share/pixmaps/"* "$HOME/.local/share/pixmaps/"
+    fi
+
+    # Deploy VLC skins if present
+    if [ -d "$SCRIPT_DIR/.local/share/vlc" ]; then
+        mkdir -p "$HOME/.local/share/vlc"
+        cp -r "$SCRIPT_DIR/.local/share/vlc/"* "$HOME/.local/share/vlc/"
     fi
 
     # Install desktop entries

@@ -310,7 +310,7 @@ window-rule {
     match app-id="org.videolan.vlc" title=r#"^vlc$"#
     open-floating true
     open-focused false
-    default-floating-position x=0 y=30 relative-to="bottom"
+    default-floating-position x=368 y=20 relative-to="bottom-left"
 }
 window-rule {
     match app-id="vlc"

@@ -15,6 +15,8 @@ typedef void (*resize_fn_t)(void *, int, int, int, int);
 static resize_fn_t real_resize = NULL;
 
 void wl_egl_window_resize(void *win, int w, int h, int dx, int dy) {
+    (void)dx;
+    (void)dy;
     if (!real_resize) {
         void *lib = dlopen("libwayland-egl.so.1", RTLD_LAZY);
         if (lib) {
@@ -23,26 +25,22 @@ void wl_egl_window_resize(void *win, int w, int h, int dx, int dy) {
     }
     if (real_resize) {
         // Fix VLC 3.0 Wayland letterboxing bug:
-        // On Wayland, VLC calculates place.width / place.height and resizes
-        // the Wayland EGL buffer to only the video frame height (e.g. 1536 instead
-        // of 1728 for 2:1 on 16:9), while attaching the subsurface at (0, 0).
-        // In fullscreen (w >= 1920 or h >= 1080), expand the buffer to the full 16:9 monitor
-        // so OpenGL centers the video with symmetrical letterboxing.
-        if (w >= 1920) {
-            int expected_h = (w * 9) / 16;
-            if (h < expected_h) {
-                h = expected_h;
-            }
+        // In fullscreen (w >= 1920 or h >= 1080), calculate symmetrical centering
+        // offsets so non-16:9 videos (e.g. 2:1 Silo at 1920x960) are centered
+        // vertically and horizontally rather than sticking to the top edge and
+        // leaving an asymmetrical blank space at the bottom.
+        int out_dx = 0;
+        int out_dy = 0;
+        if (w >= 1920 || h >= 1080) {
+            int target_w = (w > 1920) ? w : 1920;
+            int target_h = (h > 1080) ? h : 1080;
+            out_dx = (target_w - w) / 2;
+            out_dy = (target_h - h) / 2;
         }
-        if (h >= 1080) {
-            int expected_w = (h * 16) / 9;
-            if (w < expected_w) {
-                w = expected_w;
-            }
-        }
-        // Force dx=0, dy=0 to eliminate the unsigned integer underflow bug
-        // where (sys->width - width) / 2 passed negative offsets to Wayland.
-        real_resize(win, w, h, 0, 0);
+        if (out_dx < 0) out_dx = 0;
+        if (out_dy < 0) out_dy = 0;
+
+        real_resize(win, w, h, out_dx, out_dy);
     }
 }
 
@@ -78,6 +76,7 @@ static vout_req_fn real_vout_req = NULL;
 
 void *vout_Request(void *object, const void *cfg) {
     if (!real_vout_req) real_vout_req = dlsym(RTLD_NEXT, "vout_Request");
+    if (!real_var_SetChecked) real_var_SetChecked = dlsym(RTLD_DEFAULT, "var_SetChecked");
     void *v = real_vout_req(object, cfg);
     if (v) {
         atomic_store(&g_vout, v);
@@ -124,10 +123,20 @@ static void my_motion(void *data, void *pointer, uint32_t time, int32_t sx, int3
     if (cur_vout && real_var_SetChecked) {
         int32_t x = sx / 256;
         int32_t y = sy / 256;
-        vlc_value_t val;
-        val.coords.x = x;
-        val.coords.y = y;
-        real_var_SetChecked(cur_vout, "mouse-moved", VLC_VAR_COORDS, val);
+
+        // Throttle updates so we don't flood VLC with 1000 events/sec
+        static int32_t last_x = -1, last_y = -1;
+        static uint32_t last_time = 0;
+        if (abs(x - last_x) >= 8 || abs(y - last_y) >= 8 || (time - last_time) >= 150) {
+            last_x = x;
+            last_y = y;
+            last_time = time;
+
+            vlc_value_t val;
+            val.coords.x = x;
+            val.coords.y = y;
+            real_var_SetChecked(cur_vout, "mouse-moved", VLC_VAR_COORDS, val);
+        }
     }
 }
 
@@ -158,4 +167,45 @@ int wl_proxy_add_listener(void *proxy, void (**impl)(void), void *data) {
         }
     }
     return real_add(proxy, impl, data);
+}
+
+/* =========================================================================
+ * 3. Prevent FullscreenControllerWidget from Hiding on Wayland ActivationChange
+ * =========================================================================
+ * In VLC's Qt interface, FullscreenControllerWidget installs an event filter on
+ * the parent window (MainInterface). On Wayland with Niri, when the floating
+ * controller widget appears with `open-focused false`, Qt sends an
+ * ActivationChange event to the parent window. Because VLC thinks the window
+ * is not active on Wayland, it immediately calls hideFSC(), causing the
+ * controller to disappear the very instant it appears.
+ *
+ * By intercepting QObject::installEventFilter and skipping it when the filter
+ * object is FullscreenControllerWidget, the bogus ActivationChange events
+ * are never delivered to FullscreenControllerWidget. The controller will then
+ * stably remain visible while mouse moves and for the full 1.5s timeout!
+ * ========================================================================= */
+void _ZN7QObject18installEventFilterEPS_(void *watched, void *filterObj) {
+    static void (*real_install)(void *, void *) = NULL;
+    if (!real_install) {
+        void *lib = dlopen("libQt5Core.so.5", RTLD_LAZY | RTLD_NOLOAD);
+        if (!lib) lib = dlopen("libQt5Core.so.5", RTLD_LAZY);
+        if (lib) real_install = dlsym(lib, "_ZN7QObject18installEventFilterEPS_");
+    }
+
+    if (filterObj) {
+        void *vtable = *(void **)filterObj;
+        if (vtable) {
+            void *tinfo = ((void **)vtable)[-1];
+            if (tinfo) {
+                const char *mangled = ((const char **)tinfo)[1];
+                if (mangled && strstr(mangled, "FullscreenControllerWidget")) {
+                    return; // Prevent FSC from installing event filter on parent window
+                }
+            }
+        }
+    }
+
+    if (real_install) {
+        real_install(watched, filterObj);
+    }
 }

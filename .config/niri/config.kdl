@@ -300,6 +300,16 @@ window-rule {
     draw-border-with-background false
 }
 window-rule {
+    match app-id="kitty"
+    match app-id="Alacritty"
+    match app-id="alacritty"
+    match app-id="com.mitchellh.ghostty"
+    match app-id=r#"^org\.wezfurlong\.wezterm$"#
+    open-floating true
+    default-column-width { proportion 0.65; }
+    default-window-height { proportion 0.65; }
+}
+window-rule {
     match app-id=r#"firefox$"# title="^Picture-in-Picture$"
     match app-id="zoom"
     open-floating true

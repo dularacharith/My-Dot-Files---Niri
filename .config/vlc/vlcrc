@@ -4213,7 +4213,7 @@ aout=pulse
 #embedded-video=1
 
 #  (boolean)
-xlib=0
+xlib=1
 
 # Drop late frames (boolean)
 #drop-late-frames=1

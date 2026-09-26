@@ -1587,7 +1587,7 @@ freetype-font=Adwaita Sans
 [qt] # Qt interface
 
 # Start in minimal view (without menus) (boolean)
-qt-minimal-view=1
+qt-minimal-view=0
 
 # Systray icon (boolean)
 #qt-system-tray=1

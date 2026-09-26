@@ -1573,7 +1573,7 @@ freetype-font=Adwaita Sans
 skins2-last=/home/dularacharith/.local/share/vlc/skins2/MinimalX/theme.xml
 
 # Config of last used skin (string)
-#skins2-config=
+skins2-config=["MainWindow" "MainFrame" 585 299 750 482 0]["PlaylistWindow" "PlaylistFrame" 585 299 750 482 0]["SettingsWindow" "SettingsFrame" 585 299 750 482 0]["VolumeWindow" "VolumeFrame" 585 299 750 482 0]["bottom" "bottom_0" 0 0 650 360 0]["cinema" "cinema_off" 0 0 650 360 0]["color" "color_1" 0 0 1 1 0]["first" "first_on" 0 0 1 1 0]["fullscreenController" "fswindow" 0 1020 1920 60 0]["hint1" "hint1_on" 0 0 650 360 0]["playlisticons" "playlisticons_1" 0 0 1 1 0]["posbar" "posbar_big" 0 0 1 1 0]["sett" "sett_0" 0 0 1 1 0]["titlebar" "titlebar_off" 0 0 650 360 0]["video" "video_0" 0 0 1 1 0]
 
 # Enable transparency effects (boolean)
 #skins2-transparency=0
@@ -1587,7 +1587,7 @@ skins2-last=/home/dularacharith/.local/share/vlc/skins2/MinimalX/theme.xml
 [qt] # Qt interface
 
 # Start in minimal view (without menus) (boolean)
-#qt-minimal-view=0
+qt-minimal-view=1
 
 # Systray icon (boolean)
 #qt-system-tray=1
@@ -1614,7 +1614,7 @@ qt-video-autoresize=0
 #qt-name-in-title=1
 
 # Show a controller in fullscreen mode (boolean)
-#qt-fs-controller=1
+qt-fs-controller=1
 
 # Save the recently played items in the menu (boolean)
 #qt-recentplay=1
@@ -1626,7 +1626,7 @@ qt-video-autoresize=0
 #qt-continue=1
 
 # Enable Dark Mode (boolean)
-#qt-dark-palette=0
+qt-dark-palette=1
 
 # Embed the file browser in open dialog (boolean)
 #qt-embedded-open=0
@@ -4210,7 +4210,7 @@ aout=pulse
 fullscreen=0
 
 # Embedded video (boolean)
-#embedded-video=1
+embedded-video=1
 
 #  (boolean)
 #xlib=1
@@ -4699,7 +4699,7 @@ metadata-network-access=1
 #stats=1
 
 # Interface module (string)
-intf=skins2
+#intf=
 
 # Extra interface modules (string)
 #extraintf=

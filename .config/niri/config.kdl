@@ -207,12 +207,13 @@ animations {
     }
 
     window-movement {
-        spring damping-ratio=0.92 stiffness=750 epsilon=0.0001
+        duration-ms 450
+        curve "cubic-bezier" 0.16 1.0 0.3 1.0
     }
 
     window-resize {
-        duration-ms 320
-        curve "cubic-bezier" 0.05 0.9 0.1 1.0
+        duration-ms 380
+        curve "cubic-bezier" 0.16 1.0 0.3 1.0
         custom-shader r"
             vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
                 float w_curr = max(1.0, size_curr_geo.x);

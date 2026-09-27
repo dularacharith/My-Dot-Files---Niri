@@ -286,8 +286,8 @@ window-rule {
     match app-id="com.mitchellh.ghostty"
     match app-id=r#"^org\.wezfurlong\.wezterm$"#
     open-floating true
-    default-column-width { proportion 0.5; }
-    default-window-height { proportion 0.65; }
+    default-column-width { fixed 600; }
+    default-window-height { fixed 600; }
 }
 window-rule {
     match app-id=r#"firefox$"# title="^Picture-in-Picture$"

@@ -20,6 +20,7 @@ import time
 import socket
 import signal
 import logging
+import threading
 
 try:
     sys.stdout.reconfigure(line_buffering=True)
@@ -66,6 +67,10 @@ class NiriAutoFloat:
         self.workspace_split_info = {}
         # Window ID for which demotion is temporarily suppressed until it regains focus
         self.suppress_demote_until_focus = None
+        # Track tiled windows that were maximized: wid -> 'maximized' | 'true_fullscreen'
+        self.was_maximized = {}
+        # Track floating windows that have been made centered square
+        self.squared_floating_ids = set()
 
     def connect(self):
         self.sock_path = get_niri_socket()
@@ -207,6 +212,34 @@ class NiriAutoFloat:
             
         return False, None
 
+    def make_centered_square(self, win, wid, workspaces, outputs):
+        if not win or self.is_exempt(win):
+            return
+
+        ws_id = win.get('workspace_id')
+        ws = next((w for w in workspaces if w.get('id') == ws_id), None)
+        out_name = ws.get('output') if ws else None
+        out = outputs.get(out_name, {}).get('logical') if out_name else None
+
+        out_w = out.get('width', 1536) if out else 1536
+        out_h = out.get('height', 864) if out else 864
+
+        # Compute square size (~70% of screen height, rounded to nearest 20 for clean pixel alignment)
+        square_size = int(round(out_h * 0.70 / 20.0) * 20)
+
+        log.info(f"Sizing floating window {wid} ({win.get('app_id')}) to centered square: {square_size}x{square_size}")
+        self.send_action({'SetWindowWidth': {'id': wid, 'change': {'SetFixed': square_size}}})
+        self.send_action({'SetWindowHeight': {'id': wid, 'change': {'SetFixed': square_size}}})
+        self.send_action({'CenterWindow': {'id': wid}})
+
+        # Secondary center after client attaches the resized buffer (~80ms)
+        def delayed_center():
+            try:
+                self.send_action({'CenterWindow': {'id': wid}})
+            except Exception:
+                pass
+        threading.Timer(0.08, delayed_center).start()
+
     def handle_update(self):
         windows = self.get_windows()
         if windows is None:
@@ -237,6 +270,8 @@ class NiriAutoFloat:
         current_ids = set(win_by_id.keys())
         self.auto_float_ids.intersection_update(current_ids)
         self.manually_tiled_ids.intersection_update(current_ids)
+        self.squared_floating_ids.intersection_update(current_ids)
+        self.was_maximized = {wid: m for wid, m in self.was_maximized.items() if wid in current_ids}
 
         for ws_id in list(self.workspace_split_info.keys()):
             m_id = self.workspace_split_info[ws_id].get('main_wid')
@@ -261,10 +296,12 @@ class NiriAutoFloat:
                 mode = split_info.get('mode')
                 log.info(f"Only 1 float window ({f_rem_id}) remains on ws {ws_id}; restoring {f_rem_id} to float and {m_id} to {mode}")
 
-                # 1. Ensure the remaining window is floating
+                # 1. Ensure the remaining window is floating and centered square
                 if not f_rem.get('is_floating'):
                     self.send_action({'MoveWindowToFloating': {'id': f_rem_id}})
                     self.prev_win_states[f_rem_id] = (True, True)
+                self.make_centered_square(f_rem, f_rem_id, workspaces, outputs)
+                self.squared_floating_ids.add(f_rem_id)
 
                 # 2. Restore the background window to maximized / fullscreen
                 if m_id in win_by_id:
@@ -290,11 +327,52 @@ class NiriAutoFloat:
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
                         self.send_action({'MaximizeColumn': {}})
 
-        # 2. Track floating windows and respect explicit user manual tiling
+        # 2. Track floating windows, maximized state, and handle transitions
         for wid, w in win_by_id.items():
             cur_focused = (focused is not None and focused.get('id') == wid)
             cur_floating = w.get('is_floating', False)
+            prev_focused, prev_floating = self.prev_win_states.get(wid, (False, False))
 
+            # Track maximized state when window is TILED
+            if not cur_floating and not self.is_exempt(w):
+                ws_id = w.get('workspace_id')
+                if ws_id not in self.workspace_split_info or self.workspace_split_info[ws_id].get('main_wid') != wid:
+                    is_fs, fs_mode = self.check_fullscreen(w, workspaces, outputs)
+                    if is_fs:
+                        self.was_maximized[wid] = fs_mode
+                    else:
+                        self.was_maximized.pop(wid, None)
+
+            # Detect transition: TILED -> FLOATING (or new floating window opened)
+            is_new_floating = (wid not in self.prev_win_states and cur_floating)
+            is_transition_to_float = (cur_floating and not prev_floating)
+            if (is_new_floating or is_transition_to_float) and not self.is_exempt(w):
+                was_max = self.was_maximized.get(wid)
+                log.info(f"Window {wid} ({w.get('app_id')}) became floating (was_max={was_max})")
+                if wid not in self.squared_floating_ids:
+                    self.make_centered_square(w, wid, workspaces, outputs)
+                    self.squared_floating_ids.add(wid)
+
+            # Detect transition: FLOATING -> TILED (e.g. user pressed Mod+Shift+T to un-float)
+            if prev_floating and not cur_floating:
+                self.squared_floating_ids.discard(wid)
+                was_max = self.was_maximized.pop(wid, None)
+                if was_max == 'true_fullscreen':
+                    log.info(f"Restoring window {wid} ({w.get('app_id')}) to true fullscreen")
+                    self.send_action({'ResetWindowHeight': {'id': wid}})
+                    self.send_action({'FullscreenWindow': {'id': wid}})
+                elif was_max == 'maximized':
+                    log.info(f"Restoring window {wid} ({w.get('app_id')}) to maximized tiling")
+                    self.send_action({'ResetWindowHeight': {'id': wid}})
+                    self.send_action({'SwitchPresetWindowWidth': {'id': wid}})
+                    self.send_action({'FocusWindow': {'id': wid}})
+                    self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
+                    self.send_action({'MaximizeColumn': {}})
+                else:
+                    self.send_action({'ResetWindowHeight': {'id': wid}})
+                    self.send_action({'SwitchPresetWindowWidth': {'id': wid}})
+
+            # Track auto-float & manual tiling overrides
             if cur_floating and not self.is_exempt(w):
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
@@ -304,13 +382,10 @@ class NiriAutoFloat:
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
                     log.info(f"Tracking default-floating window {wid} ({w.get('app_id')})")
-            elif wid in self.prev_win_states:
-                prev_focused, prev_floating = self.prev_win_states[wid]
-                # If window was floating and user manually tiled it while focused (Mod+Shift+T):
-                if prev_floating and not cur_floating and cur_focused:
-                    self.auto_float_ids.discard(wid)
-                    self.manually_tiled_ids.add(wid)
-                    log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
+            elif prev_floating and not cur_floating and cur_focused:
+                self.auto_float_ids.discard(wid)
+                self.manually_tiled_ids.add(wid)
+                log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
 
         # Update tracked states
         self.prev_win_states = {
@@ -350,6 +425,12 @@ class NiriAutoFloat:
                 log.info(f"Promoting focused window {f_id} ({focused.get('app_id')}) to floating!")
                 self.send_action({'MoveWindowToFloating': {'id': f_id}})
                 self.prev_win_states[f_id] = (True, True)
+                f_floating = True
+                self.make_centered_square(focused, f_id, workspaces, outputs)
+                self.squared_floating_ids.add(f_id)
+            elif f_id not in self.squared_floating_ids:
+                self.make_centered_square(focused, f_id, workspaces, outputs)
+                self.squared_floating_ids.add(f_id)
 
             # SUBCASE 3A: TWO OR MORE FLOAT WINDOWS ON THIS WORKSPACE
             # Maintain 50/50 split with background window, looping between the float windows
@@ -375,7 +456,9 @@ class NiriAutoFloat:
                     if other_id != f_id:
                         log.info(f"Demoting other float window {other_id} ({other.get('app_id')}) to 50% split tile")
                         self.send_action({'MoveWindowToTiling': {'id': other_id}})
+                        self.send_action({'ResetWindowHeight': {'id': other_id}})
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
+                        self.squared_floating_ids.discard(other_id)
                         self.prev_win_states[other_id] = (False, False)
 
                 # Center the split columns side-by-side
@@ -421,7 +504,9 @@ class NiriAutoFloat:
                     log.info(f"Demoting floating window {wid} ({w.get('app_id')}) to 50% tiling layout")
                     self.auto_float_ids.add(wid)
                     self.send_action({'MoveWindowToTiling': {'id': wid}})
+                    self.send_action({'ResetWindowHeight': {'id': wid}})
                     self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
+                    self.squared_floating_ids.discard(wid)
                     self.prev_win_states[wid] = (False, False)
 
             if num_floats > 0:

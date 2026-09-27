@@ -52,10 +52,19 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     color: "transparent"
 
-    readonly property real staticToastWidth: 220
-    readonly property real dynamicContentWidth: messageText.implicitWidth + statusIcon.width + Theme.spacingM + ((ToastService.hasDetails || ToastService.isStickyCategory(ToastService.currentCategory)) ? (expandButton.width + closeButton.width + 4) : (ToastService.currentLevel === ToastService.levelError ? closeButton.width + Theme.spacingS : 0)) + Theme.spacingL * 2 + Theme.spacingM * 2
-    readonly property real toastWidth: shouldBeVisible ? Theme.px(Math.min(900, Math.max(staticToastWidth, dynamicContentWidth)), dpr) : frozenWidth
-    readonly property real toastHeight: Theme.px(toastContent.height + Theme.spacingL * 2, dpr)
+    readonly property bool isStatusToast: !ToastService.hasDetails && ToastService.currentLevel !== ToastService.levelError && !ToastService.isStickyCategory(ToastService.currentCategory)
+
+    readonly property real statusPaddingV: Theme.spacingM
+    readonly property real statusPaddingH: Theme.spacingL
+    readonly property real defaultPadding: Theme.spacingL
+
+    readonly property real currentPaddingV: isStatusToast ? statusPaddingV : defaultPadding
+    readonly property real currentPaddingH: isStatusToast ? statusPaddingH : defaultPadding
+
+    readonly property real staticToastWidth: 170
+    readonly property real dynamicContentWidth: messageText.implicitWidth + statusIcon.width + Theme.spacingM + ((ToastService.hasDetails || ToastService.isStickyCategory(ToastService.currentCategory)) ? (expandButton.width + closeButton.width + 4) : (ToastService.currentLevel === ToastService.levelError ? closeButton.width + Theme.spacingS : 0)) + currentPaddingH * 2
+    readonly property real toastWidth: shouldBeVisible ? Theme.px(Math.min(900, Math.max(isStatusToast ? staticToastWidth : 220, dynamicContentWidth)), dpr) : frozenWidth
+    readonly property real toastHeight: Theme.px(toastContent.height + currentPaddingV * 2, dpr)
 
     anchors {
         top: true
@@ -106,7 +115,7 @@ PanelWindow {
                 return Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency);
             }
         }
-        radius: Theme.cornerRadius
+        radius: root.isStatusToast ? Math.round(root.toastHeight / 2) : Theme.cornerRadius
         border.width: 1
         border.color: ToastService.currentLevel === ToastService.levelError ? "transparent" : Theme.outlineMedium
         opacity: shouldBeVisible ? 1 : 0
@@ -117,15 +126,15 @@ PanelWindow {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.topMargin: Theme.spacingL
-            anchors.leftMargin: Theme.spacingL
-            anchors.rightMargin: Theme.spacingL
+            anchors.topMargin: root.currentPaddingV
+            anchors.leftMargin: root.currentPaddingH
+            anchors.rightMargin: root.currentPaddingH
             spacing: Theme.spacingS
 
             Item {
                 id: headerItem
                 width: parent.width
-                height: Math.max(Theme.iconSize + 8, messageText.implicitHeight)
+                height: root.isStatusToast ? 24 : Math.max(Theme.iconSize + 8, messageText.implicitHeight)
 
                 readonly property bool hasButtons: ToastService.hasDetails || ToastService.currentLevel === ToastService.levelError || ToastService.isStickyCategory(ToastService.currentCategory)
 
@@ -155,7 +164,7 @@ PanelWindow {
                                 return "info";
                             }
                         }
-                        size: Theme.iconSize
+                        size: root.isStatusToast ? 20 : Theme.iconSize
                         color: {
                             switch (ToastService.currentLevel) {
                             case ToastService.levelError:

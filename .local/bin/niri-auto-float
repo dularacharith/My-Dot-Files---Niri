@@ -59,6 +59,8 @@ class NiriAutoFloat:
         self.prev_win_states = {}
         # Track half-split pairs: floating_wid -> {'main_wid': int, 'mode': 'true_fullscreen' | 'maximized'}
         self.split_pairs = {}
+        # Window ID for which demotion is temporarily suppressed until it regains focus
+        self.suppress_demote_until_focus = None
 
     def connect(self):
         self.sock_path = get_niri_socket()
@@ -95,6 +97,8 @@ class NiriAutoFloat:
         try:
             if not self.s_cmd or not self.cmd_reader:
                 return None
+            if isinstance(action_dict, str):
+                action_dict = {action_dict: {}}
             req = json.dumps({'Action': action_dict}) + '\n'
             self.s_cmd.sendall(req.encode())
             res = self.cmd_reader.readline()
@@ -173,13 +177,17 @@ class NiriAutoFloat:
         
         layout = win.get('layout') or {}
         tile_size = layout.get('tile_size') or [0, 0]
-        
+        window_size = layout.get('window_size') or [0, 0]
+
+        w_width = max(tile_size[0], window_size[0])
+        w_height = max(tile_size[1], window_size[1])
+
         # True fullscreen in Niri takes the full logical resolution (zero gaps)
-        if tile_size[0] >= out_w and tile_size[1] >= out_h:
+        if w_width >= (out_w - 5) and w_height >= (out_h - 5):
             return True, 'true_fullscreen'
         
         # Maximized / full-width column takes >85% of screen width
-        if tile_size[0] >= 0.85 * out_w:
+        if w_width >= 0.85 * out_w:
             return True, 'maximized'
             
         return False, None
@@ -199,6 +207,17 @@ class NiriAutoFloat:
             if active_ws and active_ws.get('active_window_id'):
                 focused = win_by_id.get(active_ws['active_window_id'])
 
+        # Check suppression flag for temporary focus shifts during restoration
+        if self.suppress_demote_until_focus is not None:
+            if self.suppress_demote_until_focus not in win_by_id:
+                self.suppress_demote_until_focus = None
+            elif focused and focused.get('id') == self.suppress_demote_until_focus:
+                log.info(f"Target window {self.suppress_demote_until_focus} regained focus; clearing suppress flag")
+                self.suppress_demote_until_focus = None
+            else:
+                log.info(f"Suppressing auto-float actions while waiting for focus on {self.suppress_demote_until_focus}")
+                return
+
         # 1. Clean up closed windows
         current_ids = set(win_by_id.keys())
         self.auto_float_ids.intersection_update(current_ids)
@@ -210,13 +229,17 @@ class NiriAutoFloat:
                 m_id = pair_info.get('main_wid')
                 mode = pair_info.get('mode')
                 if m_id in win_by_id:
-                    if mode == 'true_fullscreen':
-                        log.info(f"Paired floating window {wid} closed; restoring window {m_id} to true fullscreen")
-                        self.send_action({'FullscreenWindow': {'id': m_id}})
-                    elif mode == 'maximized':
-                        log.info(f"Paired floating window {wid} closed; restoring window {m_id} to full width")
+                    is_m_fs, _ = self.check_fullscreen(win_by_id[m_id], workspaces, outputs)
+                    if not is_m_fs:
+                        self.suppress_demote_until_focus = m_id
                         self.send_action({'FocusWindow': {'id': m_id}})
-                        self.send_action('ExpandColumnToAvailableWidth')
+                        if mode == 'true_fullscreen':
+                            log.info(f"Paired floating window {wid} closed; restoring window {m_id} to true fullscreen")
+                            self.send_action({'FullscreenWindow': {'id': m_id}})
+                        elif mode == 'maximized':
+                            log.info(f"Paired floating window {wid} closed; restoring window {m_id} to full width")
+                            self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
+                            self.send_action({'MaximizeColumn': {}})
             else:
                 if self.split_pairs[wid].get('main_wid') not in current_ids:
                     self.split_pairs.pop(wid)
@@ -263,13 +286,16 @@ class NiriAutoFloat:
                 m_id = pair_info.get('main_wid')
                 mode = pair_info.get('mode')
                 if m_id in win_by_id:
-                    if mode == 'true_fullscreen':
-                        log.info(f"Restoring paired window {m_id} to true fullscreen")
-                        self.send_action({'FullscreenWindow': {'id': m_id}})
-                    elif mode == 'maximized':
-                        log.info(f"Restoring paired window {m_id} to full width")
+                    is_m_fs, _ = self.check_fullscreen(win_by_id[m_id], workspaces, outputs)
+                    if not is_m_fs:
+                        log.info(f"Restoring paired window {m_id} to {mode}")
+                        self.suppress_demote_until_focus = f_id
                         self.send_action({'FocusWindow': {'id': m_id}})
-                        self.send_action('ExpandColumnToAvailableWidth')
+                        if mode == 'true_fullscreen':
+                            self.send_action({'FullscreenWindow': {'id': m_id}})
+                        elif mode == 'maximized':
+                            self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
+                            self.send_action({'MaximizeColumn': {}})
                         self.send_action({'FocusWindow': {'id': f_id}})
             return
 
@@ -300,7 +326,7 @@ class NiriAutoFloat:
 
                     if is_fs:
                         # Center visible columns side-by-side
-                        self.send_action('CenterVisibleColumns')
+                        self.send_action({'CenterVisibleColumns': {}})
 
     def run(self):
         log.info("Starting Niri Auto-Float Daemon...")

@@ -258,19 +258,13 @@ class NiriAutoFloat:
             rect_h = int(round(out_h * 0.68 / 20.0) * 20)
             rect_w = int(round(rect_h * 1.45 / 20.0) * 20)
 
-        log.info(f"Sizing floating window {wid} ({win.get('app_id')}) to centered rectangle: {rect_w}x{rect_h}")
+        target_x = max(0.0, float((out_w - rect_w) / 2.0))
+        target_y = max(0.0, float((out_h - rect_h) / 2.0))
+
+        log.info(f"Sizing floating window {wid} ({win.get('app_id')}) to centered rectangle: {rect_w}x{rect_h} at ({target_x}, {target_y})")
         self.send_action({'SetWindowWidth': {'id': wid, 'change': {'SetFixed': rect_w}}})
         self.send_action({'SetWindowHeight': {'id': wid, 'change': {'SetFixed': rect_h}}})
-        self.send_action({'CenterWindow': {'id': wid}})
-
-        # Secondary center after client attaches the resized buffer (~80ms)
-        def delayed_center():
-            try:
-                if wid not in self.fullscreen_ids and wid not in self.tucked_floating_ids:
-                    self.send_action({'CenterWindow': {'id': wid}})
-            except Exception:
-                pass
-        threading.Timer(0.08, delayed_center).start()
+        self.send_action({'MoveFloatingWindow': {'id': wid, 'x': {'SetFixed': target_x}, 'y': {'SetFixed': target_y}}})
 
     def handle_update(self):
         windows = self.get_windows()

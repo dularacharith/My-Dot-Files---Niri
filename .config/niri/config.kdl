@@ -213,8 +213,8 @@ animations {
     }
 
     window-resize {
-        duration-ms 750
-        curve "cubic-bezier" 0.2 0.0 0.0 1.0
+        duration-ms 320
+        curve "cubic-bezier" 0.16 1.0 0.3 1.0
         custom-shader r"
             vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
                 float w_curr = max(1.0, size_curr_geo.x);
@@ -256,7 +256,7 @@ animations {
                     return vec4(0.0, 0.0, 0.0, bg_alpha);
                 }
 
-                float blend = smoothstep(0.35, 0.75, p);
+                float blend = smoothstep(0.15, 0.65, p);
                 vec4 color = mix(color_prev, color_next, blend);
                 return color;
             }
@@ -283,6 +283,11 @@ animations {
 // Window rules let you adjust behavior for individual windows.
 // Find more information on the wiki:
 // https://github.com/YaLTeR/niri/wiki/Configuration:-Window-Rules
+window-rule {
+    geometry-corner-radius 3
+    clip-to-geometry true
+    draw-border-with-background false
+}
 // Work around WezTerm's initial configure bug
 // by setting an empty default-column-width.
 window-rule {

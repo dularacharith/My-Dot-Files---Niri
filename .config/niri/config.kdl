@@ -318,6 +318,14 @@ window-rule {
     exclude title=r#"^\*?\s*Cisco Packet Tracer"#
     open-floating true
 }
+
+window-rule {
+    match app-id="antigravity"
+    match app-id=r#"^antigravity$"#
+    open-maximized true
+    default-column-width { proportion 1.0; }
+}
+
 debug {
     honor-xdg-activation-with-invalid-serial
 }

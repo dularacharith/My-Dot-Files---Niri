@@ -424,31 +424,30 @@ class NiriAutoFloat:
                     log.info(f"Restoring window {wid} ({w.get('app_id')}) to true fullscreen")
                     self.send_action({'ResetWindowHeight': {'id': wid}})
                     self.send_action({'FullscreenWindow': {'id': wid}})
-                elif was_max == 'maximized':
-                    log.info(f"Restoring window {wid} ({w.get('app_id')}) to maximized tiling")
-                    self.send_action({'ResetWindowHeight': {'id': wid}})
-                    self.send_action({'SwitchPresetWindowWidth': {'id': wid}})
-                    self.send_action({'FocusWindow': {'id': wid}})
-                    self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
-                    self.send_action({'MaximizeColumn': {}})
                 else:
+                    log.info(f"Window {wid} ({w.get('app_id')}) returned from float to tile; setting 50% half-split")
                     self.send_action({'ResetWindowHeight': {'id': wid}})
-                    self.send_action({'SwitchPresetWindowWidth': {'id': wid}})
+                    self.send_action({'FocusWindow': {'id': wid}})
+                    self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
+                    self.send_action({'CenterVisibleColumns': {}})
 
             # Track auto-float & manual tiling overrides
-            if cur_floating and not self.is_exempt(w):
+            # 1. Manual tiling override: focused window was floating and user un-floated it (Mod+Shift+T)
+            if prev_floating and not cur_floating and cur_focused and not is_true_fs:
+                self.auto_float_ids.discard(wid)
+                self.manually_tiled_ids.add(wid)
+                log.info(f"Window {wid} ({w.get('app_id')}) manually tiled while focused; added to manually_tiled_ids")
+            # 2. Currently floating: clear manual tiling override and track
+            elif cur_floating and not self.is_exempt(w):
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
-                    self.manually_tiled_ids.discard(wid)
-                    log.info(f"Tracking floating window {wid} ({w.get('app_id')})")
+                self.manually_tiled_ids.discard(wid)
+                log.info(f"Tracking floating window {wid} ({w.get('app_id')})")
+            # 3. Default floating windows (when not manually tiled)
             elif self.is_default_floating(w) and wid not in self.manually_tiled_ids and not is_true_fs:
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
                     log.info(f"Tracking default-floating window {wid} ({w.get('app_id')})")
-            elif prev_floating and not cur_floating and cur_focused and not is_true_fs:
-                self.auto_float_ids.discard(wid)
-                self.manually_tiled_ids.add(wid)
-                log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
 
         # Update tracked states
         self.prev_win_states = {

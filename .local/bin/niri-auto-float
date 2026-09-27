@@ -297,11 +297,6 @@ class NiriAutoFloat:
 
                         # Set focused window column to 50%
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
-                        # Set demoted window column to 50%
-                        self.send_action({'FocusWindow': {'id': wid}})
-                        self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
-                        # Refocus original focused window
-                        self.send_action({'FocusWindow': {'id': f_id}})
                         # Center visible columns side-by-side
                         self.send_action('CenterVisibleColumns')
 

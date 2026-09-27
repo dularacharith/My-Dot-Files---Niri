@@ -66,7 +66,7 @@ input {
         natural-scroll
     }
 
-    focus-follows-mouse max-scroll-amount="0%"
+    // focus-follows-mouse max-scroll-amount="0%"
 }
 
 // You can configure outputs by their name, which you can find
@@ -306,7 +306,7 @@ window-rule {
     match app-id="com.mitchellh.ghostty"
     match app-id=r#"^org\.wezfurlong\.wezterm$"#
     open-floating true
-    default-column-width { proportion 0.65; }
+    default-column-width { proportion 0.5; }
     default-window-height { proportion 0.65; }
 }
 window-rule {

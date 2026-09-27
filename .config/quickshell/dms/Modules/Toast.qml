@@ -150,16 +150,19 @@ PanelWindow {
                     DankIcon {
                         id: statusIcon
                         name: {
-                            if (ToastService.currentCategory && ToastService.currentCategory.length > 0 && !ToastService.isStickyCategory(ToastService.currentCategory) && ToastService.currentCategory !== "niri-config" && ToastService.currentCategory !== "mango-config") {
+                            if (ToastService.currentLevel === ToastService.levelError) {
+                                return "error";
+                            }
+                            if (ToastService.currentCategory === "niri-config" || ToastService.currentCategory === "mango-config" || ToastService.currentCategory === "refresh") {
+                                return "refresh";
+                            }
+                            if (ToastService.currentCategory && ToastService.currentCategory.length > 0 && !ToastService.isStickyCategory(ToastService.currentCategory)) {
                                 return ToastService.currentCategory;
                             }
                             switch (ToastService.currentLevel) {
-                            case ToastService.levelError:
-                                return "error";
                             case ToastService.levelWarn:
                                 return "warning";
                             case ToastService.levelInfo:
-                                return "info";
                             default:
                                 return "info";
                             }

@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 # fn-feedback: Fast visual OSD feedback for keyboard function keys in Niri / DMS
-# Sends synchronous notifications with freedesktop icons and percentage progress bars.
+# Displays pill-shaped top toast messages via DMS ToastService instead of notification popups.
 
 action="${1:-}"
 sub="${2:-}"
 
-notify_osd() {
-    local tag="$1"
-    local icon="$2"
-    local title="$3"
-    local body="$4"
-    local value="${5:-}"
+show_toast() {
+    local msg="$1"
+    local level="${2:-info}"
 
-    if [ -n "$value" ]; then
-        notify-send -a "System" -i "$icon" \
-            -h "string:x-canonical-private-synchronous:$tag" \
-            -h "int:value:$value" \
-            -t 1500 \
-            "$title" "$body"
-    else
-        notify-send -a "System" -i "$icon" \
-            -h "string:x-canonical-private-synchronous:$tag" \
-            -t 1500 \
-            "$title" "$body"
+    # Immediately dismiss previous active toast to prevent queue delay on rapid keypresses
+    dms ipc call toast hide >/dev/null 2>&1
+    if ! dms ipc call toast "$level" "$msg" >/dev/null 2>&1; then
+        notify-send -a "System" -t 1500 "$msg"
     fi
+}
+
+make_bar() {
+    local val="${1:-0}"
+    local total=10
+    local filled=$(( (val * total + 5) / 100 ))
+    [ "$filled" -gt "$total" ] && filled=$total
+    [ "$filled" -lt 0 ] && filled=0
+    local empty=$(( total - filled ))
+    local bar=""
+    for ((i=0; i<filled; i++)); do bar+="━"; done
+    for ((i=0; i<empty; i++)); do bar+="─"; done
+    echo "$bar"
 }
 
 case "$action" in
@@ -43,11 +46,11 @@ case "$action" in
         if [ "$target_mode" = "off" ]; then
             printf "input {\n    touchpad {\n        off\n    }\n}\n" > "$TOUCHPAD_CONF"
             niri msg action load-config-file >/dev/null 2>&1
-            notify_osd "osd-touchpad" "touchpad-disabled-symbolic" "Touchpad" "Touchpad Off"
+            show_toast "Touchpad: Off"
         else
             printf "input {\n    touchpad {\n    }\n}\n" > "$TOUCHPAD_CONF"
             niri msg action load-config-file >/dev/null 2>&1
-            notify_osd "osd-touchpad" "input-touchpad-symbolic" "Touchpad" "Touchpad On"
+            show_toast "Touchpad: On"
         fi
         ;;
 
@@ -57,11 +60,12 @@ case "$action" in
                 dms ipc call audio mute >/dev/null 2>&1
                 sink_info=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
                 if [[ "$sink_info" =~ \[MUTED\] ]]; then
-                    notify_osd "osd-volume" "audio-volume-muted-symbolic" "Volume" "Muted"
+                    show_toast "Volume: Muted"
                 else
                     raw_vol=$(echo "$sink_info" | awk '{print $2}')
                     vol=$(awk -v v="$raw_vol" 'BEGIN { printf "%.0f", v * 100 }')
-                    notify_osd "osd-volume" "audio-volume-high-symbolic" "Volume" "$vol%" "$vol"
+                    bar=$(make_bar "$vol")
+                    show_toast "Volume: ${vol}%  $bar"
                 fi
                 ;;
             up|inc|increment)
@@ -70,14 +74,8 @@ case "$action" in
                 raw_vol=$(echo "$sink_info" | awk '{print $2}')
                 vol=$(awk -v v="$raw_vol" 'BEGIN { printf "%.0f", v * 100 }')
                 [ "$vol" -gt 100 ] && vol=100
-                if [ "$vol" -lt 35 ]; then
-                    icon="audio-volume-low-symbolic"
-                elif [ "$vol" -lt 70 ]; then
-                    icon="audio-volume-medium-symbolic"
-                else
-                    icon="audio-volume-high-symbolic"
-                fi
-                notify_osd "osd-volume" "$icon" "Volume" "$vol%" "$vol"
+                bar=$(make_bar "$vol")
+                show_toast "Volume: ${vol}%  $bar"
                 ;;
             down|dec|decrement)
                 dms ipc call audio decrement 3 >/dev/null 2>&1
@@ -86,15 +84,11 @@ case "$action" in
                 vol=$(awk -v v="$raw_vol" 'BEGIN { printf "%.0f", v * 100 }')
                 [ "$vol" -lt 0 ] && vol=0
                 if [ "$vol" -eq 0 ]; then
-                    icon="audio-volume-muted-symbolic"
-                elif [ "$vol" -lt 35 ]; then
-                    icon="audio-volume-low-symbolic"
-                elif [ "$vol" -lt 70 ]; then
-                    icon="audio-volume-medium-symbolic"
+                    show_toast "Volume: Muted"
                 else
-                    icon="audio-volume-high-symbolic"
+                    bar=$(make_bar "$vol")
+                    show_toast "Volume: ${vol}%  $bar"
                 fi
-                notify_osd "osd-volume" "$icon" "Volume" "$vol%" "$vol"
                 ;;
         esac
         ;;
@@ -103,9 +97,9 @@ case "$action" in
         dms ipc call audio micmute >/dev/null 2>&1
         source_info=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)
         if [[ "$source_info" =~ \[MUTED\] ]]; then
-            notify_osd "osd-mic" "microphone-sensitivity-muted-symbolic" "Microphone" "Muted"
+            show_toast "Microphone: Muted"
         else
-            notify_osd "osd-mic" "audio-input-microphone-symbolic" "Microphone" "On"
+            show_toast "Microphone: On"
         fi
         ;;
 
@@ -124,23 +118,24 @@ case "$action" in
         else
             cur=50
         fi
-        notify_osd "osd-brightness" "display-brightness-symbolic" "Brightness" "$cur%" "$cur"
+        bar=$(make_bar "$cur")
+        show_toast "Brightness: ${cur}%  $bar"
         ;;
 
     airplane)
         wifi_status=$(nmcli radio wifi 2>/dev/null)
         if [ "$wifi_status" = "enabled" ]; then
             nmcli radio wifi off >/dev/null 2>&1
-            notify_osd "osd-airplane" "airplane-mode-symbolic" "Airplane Mode" "Enabled (Wi-Fi Off)"
+            show_toast "Airplane Mode: Enabled (Wi-Fi Off)"
         else
             nmcli radio wifi on >/dev/null 2>&1
-            notify_osd "osd-airplane" "network-wireless-signal-excellent-symbolic" "Wi-Fi" "Enabled (Airplane Mode Off)"
+            show_toast "Wi-Fi: Enabled"
         fi
         ;;
 
     display)
         dms ipc call outputs cycleProfile >/dev/null 2>&1
-        notify_osd "osd-display" "video-display-symbolic" "Display" "Display Profile Switched"
+        show_toast "Display Profile Switched"
         ;;
 
     media)
@@ -151,26 +146,26 @@ case "$action" in
                 m_status=$(playerctl status 2>/dev/null)
                 m_title=$(playerctl metadata --format "{{ artist }} - {{ title }}" 2>/dev/null)
                 if [ "$m_status" = "Playing" ]; then
-                    notify_osd "osd-media" "media-playback-start-symbolic" "Media Playing" "${m_title:-Playing}"
+                    show_toast "Media Playing: ${m_title:-Playing}"
                 else
-                    notify_osd "osd-media" "media-playback-pause-symbolic" "Media Paused" "Paused"
+                    show_toast "Media: Paused"
                 fi
                 ;;
             next)
                 dms ipc call mpris next >/dev/null 2>&1
                 sleep 0.05
                 m_title=$(playerctl metadata --format "{{ artist }} - {{ title }}" 2>/dev/null)
-                notify_osd "osd-media" "media-skip-forward-symbolic" "Next Track" "${m_title:-Next}"
+                show_toast "Next Track: ${m_title:-Next}"
                 ;;
             prev)
                 dms ipc call mpris previous >/dev/null 2>&1
                 sleep 0.05
                 m_title=$(playerctl metadata --format "{{ artist }} - {{ title }}" 2>/dev/null)
-                notify_osd "osd-media" "media-skip-backward-symbolic" "Previous Track" "${m_title:-Previous}"
+                show_toast "Previous Track: ${m_title:-Previous}"
                 ;;
             stop)
                 playerctl stop 2>/dev/null || dms ipc call mpris stop >/dev/null 2>&1
-                notify_osd "osd-media" "media-playback-stop-symbolic" "Media" "Stopped"
+                show_toast "Media: Stopped"
                 ;;
         esac
         ;;

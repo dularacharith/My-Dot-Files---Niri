@@ -108,33 +108,28 @@ class NiriAutoFloat:
         last_caps = read_led('/sys/class/leds/*::capslock/brightness')
         last_num = read_led('/sys/class/leds/*::numlock/brightness')
 
+        def show_toast(msg, level="info"):
+            try:
+                subprocess.run(['dms', 'ipc', 'call', 'toast', 'hide'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                res = subprocess.run(['dms', 'ipc', 'call', 'toast', level, msg], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if res.returncode != 0:
+                    subprocess.run(['notify-send', '-a', 'System', '-t', '1500', msg], check=False)
+            except Exception:
+                pass
+
         while self.running:
             time.sleep(0.08)
             cur_caps = read_led('/sys/class/leds/*::capslock/brightness')
             if cur_caps is not None and cur_caps != last_caps:
                 last_caps = cur_caps
                 body = "ON" if cur_caps else "OFF"
-                try:
-                    subprocess.run([
-                        'notify-send', '-a', 'System', '-i', 'input-keyboard-symbolic',
-                        '-h', 'string:x-canonical-private-synchronous:osd-capslock',
-                        '-t', '1500', 'Caps Lock', body
-                    ], check=False)
-                except Exception:
-                    pass
+                show_toast(f"Caps Lock: {body}")
 
             cur_num = read_led('/sys/class/leds/*::numlock/brightness')
             if cur_num is not None and cur_num != last_num:
                 last_num = cur_num
                 body = "ON" if cur_num else "OFF"
-                try:
-                    subprocess.run([
-                        'notify-send', '-a', 'System', '-i', 'input-keyboard-symbolic',
-                        '-h', 'string:x-canonical-private-synchronous:osd-numlock',
-                        '-t', '1500', 'Num Lock', body
-                    ], check=False)
-                except Exception:
-                    pass
+                show_toast(f"Num Lock: {body}")
 
     def connect(self):
         self.sock_path = get_niri_socket()

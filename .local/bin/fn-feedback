@@ -69,10 +69,10 @@ case "$action" in
         wifi_status=$(nmcli radio wifi 2>/dev/null)
         if [ "$wifi_status" = "enabled" ]; then
             nmcli radio wifi off >/dev/null 2>&1
-            show_toast "Airplane Mode: Enabled (Wi-Fi Off)" "airplanemode_active"
+            show_toast "Airplane Mode: On" "airplanemode_active"
         else
             nmcli radio wifi on >/dev/null 2>&1
-            show_toast "Wi-Fi: Enabled" "wifi"
+            show_toast "Airplane Mode: Off" "wifi"
         fi
         ;;
 

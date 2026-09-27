@@ -52,7 +52,9 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     color: "transparent"
 
-    readonly property real toastWidth: shouldBeVisible ? Theme.px(Math.min(900, messageText.implicitWidth + statusIcon.width + Theme.spacingM + ((ToastService.hasDetails || ToastService.isStickyCategory(ToastService.currentCategory)) ? (expandButton.width + closeButton.width + 4) : (ToastService.currentLevel === ToastService.levelError ? closeButton.width + Theme.spacingS : 0)) + Theme.spacingL * 2 + Theme.spacingM * 2), dpr) : frozenWidth
+    readonly property real staticToastWidth: 220
+    readonly property real dynamicContentWidth: messageText.implicitWidth + statusIcon.width + Theme.spacingM + ((ToastService.hasDetails || ToastService.isStickyCategory(ToastService.currentCategory)) ? (expandButton.width + closeButton.width + 4) : (ToastService.currentLevel === ToastService.levelError ? closeButton.width + Theme.spacingS : 0)) + Theme.spacingL * 2 + Theme.spacingM * 2
+    readonly property real toastWidth: shouldBeVisible ? Theme.px(Math.min(900, Math.max(staticToastWidth, dynamicContentWidth)), dpr) : frozenWidth
     readonly property real toastHeight: Theme.px(toastContent.height + Theme.spacingL * 2, dpr)
 
     anchors {
@@ -105,6 +107,8 @@ PanelWindow {
             }
         }
         radius: Theme.cornerRadius
+        border.width: 1
+        border.color: ToastService.currentLevel === ToastService.levelError ? "transparent" : Theme.outlineMedium
         opacity: shouldBeVisible ? 1 : 0
 
         Column {

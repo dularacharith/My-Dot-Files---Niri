@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Adaptive brightness stepping for Niri / DMS:
+# - Above 10%: steps by 5%
+# - At or below 10%: steps by 1% for fine-grained low-light control
+
+action="${1:-down}"
+
+# Query current brightness percentage via DMS IPC
+status=$(dms ipc call brightness status 2>/dev/null)
+
+if [[ "$status" =~ ([0-9]+)% ]]; then
+    cur="${BASH_REMATCH[1]}"
+elif [ -r /sys/class/backlight/intel_backlight/brightness ] && [ -r /sys/class/backlight/intel_backlight/max_brightness ]; then
+    raw=$(< /sys/class/backlight/intel_backlight/brightness)
+    max=$(< /sys/class/backlight/intel_backlight/max_brightness)
+    cur=$(( (raw * 100 + max / 2) / max ))
+else
+    cur=50
+fi
+
+case "$action" in
+    down|dec|decrement)
+        if [ "$cur" -le 10 ]; then
+            step=1
+        elif [ "$cur" -le 15 ]; then
+            step=$((cur - 10))
+            [ "$step" -le 0 ] && step=1
+        else
+            step=5
+        fi
+        exec dms ipc call brightness decrement "$step" ""
+        ;;
+    up|inc|increment)
+        if [ "$cur" -lt 10 ]; then
+            step=1
+        else
+            step=5
+        fi
+        exec dms ipc call brightness increment "$step" ""
+        ;;
+    *)
+        echo "Usage: $0 [down|up]" >&2
+        exit 1
+        ;;
+esac

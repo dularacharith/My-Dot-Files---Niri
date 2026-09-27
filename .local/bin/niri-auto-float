@@ -560,30 +560,9 @@ class NiriAutoFloat:
                 return
 
         # 4. IF FOCUSED WINDOW IS A TILED BACKGROUND WINDOW:
+        # Leave floating windows floating untouched and preserve column tiling layout.
         if not f_floating and not is_float_target:
-            if num_floats > 0 and f_ws not in self.workspace_split_info:
-                is_fs, fs_mode = self.check_fullscreen(focused, workspaces, outputs)
-                if is_fs:
-                    log.info(f"Focused background window {f_id} was {fs_mode}; splitting into half-screen")
-                    self.workspace_split_info[f_ws] = {'main_wid': f_id, 'mode': fs_mode}
-                    if fs_mode == 'true_fullscreen':
-                        self.send_action({'FullscreenWindow': {'id': f_id}})
-                    self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
-
-            # Demote any floating window on this workspace to tiling
-            for w in float_wins:
-                wid = w['id']
-                if w.get('is_floating'):
-                    log.info(f"Demoting floating window {wid} ({w.get('app_id')}) to 50% tiling layout")
-                    self.auto_float_ids.add(wid)
-                    self.send_action({'MoveWindowToTiling': {'id': wid}})
-                    self.send_action({'ResetWindowHeight': {'id': wid}})
-                    self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
-                    self.squared_floating_ids.discard(wid)
-                    self.prev_win_states[wid] = (False, False)
-
-            if num_floats > 0:
-                self.send_action({'CenterVisibleColumns': {}})
+            return
 
     def run(self):
         log.info("Starting Niri Auto-Float Daemon...")

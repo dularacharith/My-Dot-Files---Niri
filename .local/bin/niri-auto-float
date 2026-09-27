@@ -7,8 +7,9 @@ Smart dynamic window layout manager for Niri.
   other docks into the 50% split next to the background window, looping back and forth.
 - If a background window was in full screen / maximized, it stays in a 50% split
   while multiple float windows are active.
-- When one float window is closed and only one is left, clicking on it restores
-  it to floating while the minimized background window expands back to full screen / maximized.
+- When one float window is closed and only one is left, the remaining float window
+  automatically restores to floating, and the minimized background window expands
+  back to full screen / maximized.
 - Clicking a background tiled window demotes floating windows to tiling so they never obstruct.
 """
 
@@ -232,7 +233,7 @@ class NiriAutoFloat:
                 log.info(f"Suppressing auto-float actions while waiting for focus on {self.suppress_demote_until_focus}")
                 return
 
-        # 1. Clean up closed windows
+        # 1. Clean up closed windows and handle window closure on split workspaces
         current_ids = set(win_by_id.keys())
         self.auto_float_ids.intersection_update(current_ids)
         self.manually_tiled_ids.intersection_update(current_ids)
@@ -242,7 +243,8 @@ class NiriAutoFloat:
             if m_id not in current_ids:
                 self.workspace_split_info.pop(ws_id, None)
                 continue
-            # If only 1 float window left on this workspace and it's already floating:
+
+            # Check float windows remaining on this workspace
             ws_floats = [
                 w for w in win_by_id.values()
                 if w.get('workspace_id') == ws_id
@@ -250,12 +252,22 @@ class NiriAutoFloat:
                 and w['id'] not in self.manually_tiled_ids
                 and not self.is_exempt(w)
             ]
-            if len(ws_floats) == 1 and ws_floats[0].get('is_floating'):
+
+            # CASE A: Only 1 float window remains on this workspace
+            if len(ws_floats) == 1:
+                f_rem = ws_floats[0]
+                f_rem_id = f_rem['id']
                 split_info = self.workspace_split_info.pop(ws_id)
                 mode = split_info.get('mode')
+                log.info(f"Only 1 float window ({f_rem_id}) remains on ws {ws_id}; restoring {f_rem_id} to float and {m_id} to {mode}")
+
+                # 1. Ensure the remaining window is floating
+                if not f_rem.get('is_floating'):
+                    self.send_action({'MoveWindowToFloating': {'id': f_rem_id}})
+                    self.prev_win_states[f_rem_id] = (True, True)
+
+                # 2. Restore the background window to maximized / fullscreen
                 if m_id in win_by_id:
-                    f_rem_id = ws_floats[0]['id']
-                    log.info(f"Only 1 float window ({f_rem_id}) left and already floating; restoring minimized window {m_id} to {mode}")
                     self.suppress_demote_until_focus = f_rem_id
                     self.send_action({'FocusWindow': {'id': m_id}})
                     if mode == 'true_fullscreen':
@@ -264,6 +276,19 @@ class NiriAutoFloat:
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
                         self.send_action({'MaximizeColumn': {}})
                     self.send_action({'FocusWindow': {'id': f_rem_id}})
+
+            # CASE B: 0 float windows remain on this workspace
+            elif len(ws_floats) == 0:
+                split_info = self.workspace_split_info.pop(ws_id)
+                mode = split_info.get('mode')
+                log.info(f"0 float windows remain on ws {ws_id}; restoring background window {m_id} to {mode}")
+                if m_id in win_by_id:
+                    self.send_action({'FocusWindow': {'id': m_id}})
+                    if mode == 'true_fullscreen':
+                        self.send_action({'FullscreenWindow': {'id': m_id}})
+                    elif mode == 'maximized':
+                        self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
+                        self.send_action({'MaximizeColumn': {}})
 
         # 2. Track floating windows and respect explicit user manual tiling
         for wid, w in win_by_id.items():
@@ -358,9 +383,8 @@ class NiriAutoFloat:
                 return
 
             # SUBCASE 3B: ONLY ONE FLOAT WINDOW LEFT ON THIS WORKSPACE
-            # When one float window was closed and only one is left, clicking it restores the minimized window to maximized/fullscreen
+            # When one float window was closed and only one is left, restore the minimized window to maximized/fullscreen
             if num_floats == 1:
-                # Demote any other floating window (in case of exempt or stale state)
                 if f_ws in self.workspace_split_info:
                     split_info = self.workspace_split_info.pop(f_ws)
                     m_id = split_info.get('main_wid')

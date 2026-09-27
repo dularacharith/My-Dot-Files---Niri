@@ -2,6 +2,9 @@
 """
 niri-auto-float:
 Smart dynamic window layout manager for Niri.
+- Only ONE floating window stays floating at a time on an active workspace;
+  clicking another window demotes the previous floating window to tiling,
+  and vice versa.
 - When focus shifts to a background tiled window, floating windows on that workspace
   automatically transition into tiled columns so they never obstruct your view.
 - If the background window was in full screen (or full-width maximized), it automatically
@@ -55,6 +58,8 @@ class NiriAutoFloat:
         
         # Window IDs that should float when focused
         self.auto_float_ids = set()
+        # Explicit user manual tiling overrides (Mod+Shift+T)
+        self.manually_tiled_ids = set()
         # Track previous focused and floating states: wid -> (is_focused, is_floating)
         self.prev_win_states = {}
         # Track half-split pairs: floating_wid -> {'main_wid': int, 'mode': 'true_fullscreen' | 'maximized'}
@@ -156,9 +161,19 @@ class NiriAutoFloat:
         app_id = (win.get('app_id') or '').lower()
         if 'picture-in-picture' in title or 'picture-in-picture' in app_id:
             return True
-        if 'toast' in app_id or 'overlay' in app_id or 'polkit' in app_id or 'pinentry' in app_id:
+        if 'toast' in app_id or 'overlay' in app_id or 'polkit' in app_id or 'pinentry' in app_id or 'portal' in app_id:
             return True
         return False
+
+    def is_default_floating(self, win):
+        if not win:
+            return False
+        app_id = (win.get('app_id') or '').lower()
+        return any(k in app_id for k in (
+            'kitty', 'alacritty', 'ghostty', 'wezterm', 'vlc', 'haruna',
+            'mpv', 'celluloid', 'showtime', 'decibels', 'totem', 'calculator',
+            'galculator', 'blueman'
+        ))
 
     def check_fullscreen(self, win, workspaces, outputs):
         if not win or win.get('is_floating'):
@@ -221,6 +236,7 @@ class NiriAutoFloat:
         # 1. Clean up closed windows
         current_ids = set(win_by_id.keys())
         self.auto_float_ids.intersection_update(current_ids)
+        self.manually_tiled_ids.intersection_update(current_ids)
 
         # If a paired floating window closed, restore the main window
         for wid in list(self.split_pairs.keys()):
@@ -252,12 +268,18 @@ class NiriAutoFloat:
             if cur_floating and not self.is_exempt(w):
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
+                    self.manually_tiled_ids.discard(wid)
                     log.info(f"Tracking floating window {wid} ({w.get('app_id')})")
+            elif self.is_default_floating(w) and wid not in self.manually_tiled_ids:
+                if wid not in self.auto_float_ids:
+                    self.auto_float_ids.add(wid)
+                    log.info(f"Tracking default-floating window {wid} ({w.get('app_id')})")
             elif wid in self.prev_win_states:
                 prev_focused, prev_floating = self.prev_win_states[wid]
                 # If window was floating and user manually tiled it while focused (Mod+Shift+T):
                 if prev_floating and not cur_floating and cur_focused:
                     self.auto_float_ids.discard(wid)
+                    self.manually_tiled_ids.add(wid)
                     self.split_pairs.pop(wid, None)
                     log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
 
@@ -280,12 +302,25 @@ class NiriAutoFloat:
             self.send_action({'MoveWindowToFloating': {'id': f_id}})
             self.prev_win_states[f_id] = (True, True)
 
-            # Check if this floating window was paired with a fullscreen/maximized window in a half-split
-            if f_id in self.split_pairs:
-                pair_info = self.split_pairs.pop(f_id)
+            # Demote any other floating window on this workspace to tiling
+            for wid, w in win_by_id.items():
+                if wid != f_id and w.get('workspace_id') == f_ws and w.get('is_floating'):
+                    if self.is_exempt(w):
+                        continue
+                    log.info(f"Window {f_id} promoted to float; demoting other floating window {wid} ({w.get('app_id')}) to tiling")
+                    self.auto_float_ids.add(wid)
+                    self.send_action({'MoveWindowToTiling': {'id': wid}})
+                    self.prev_win_states[wid] = (False, False)
+
+            # Check if any window was paired with a fullscreen/maximized window in a half-split on this workspace
+            for pair_fid in list(self.split_pairs.keys()):
+                pair_info = self.split_pairs.get(pair_fid)
+                if not pair_info:
+                    continue
                 m_id = pair_info.get('main_wid')
                 mode = pair_info.get('mode')
-                if m_id in win_by_id:
+                if m_id in win_by_id and win_by_id[m_id].get('workspace_id') == f_ws:
+                    self.split_pairs.pop(pair_fid, None)
                     is_m_fs, _ = self.check_fullscreen(win_by_id[m_id], workspaces, outputs)
                     if not is_m_fs:
                         log.info(f"Restoring paired window {m_id} to {mode}")
@@ -297,10 +332,24 @@ class NiriAutoFloat:
                             self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
                             self.send_action({'MaximizeColumn': {}})
                         self.send_action({'FocusWindow': {'id': f_id}})
+                    break
             return
 
-        # 4. If focused window is a TILED window on this workspace:
-        # Demote any other floating window on THIS workspace to tiling so it won't obstruct
+        # 4. If focused window is FLOATING on this workspace:
+        # Only one window stays floating at a time: demote any other floating window on this workspace to tiling
+        if f_floating:
+            for wid, w in win_by_id.items():
+                if wid != f_id and w.get('workspace_id') == f_ws and w.get('is_floating'):
+                    if self.is_exempt(w):
+                        continue
+                    log.info(f"Focused window {f_id} is floating; demoting other floating window {wid} ({w.get('app_id')}) to tiling")
+                    self.auto_float_ids.add(wid)
+                    self.send_action({'MoveWindowToTiling': {'id': wid}})
+                    self.prev_win_states[wid] = (False, False)
+            return
+
+        # 5. If focused window is a TILED window on this workspace:
+        # Demote any floating window on THIS workspace to tiling so it won't obstruct
         if not f_floating:
             is_fs, fs_mode = self.check_fullscreen(focused, workspaces, outputs)
 

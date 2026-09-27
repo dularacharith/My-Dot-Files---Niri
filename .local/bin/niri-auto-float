@@ -64,6 +64,8 @@ class NiriAutoFloat:
         self.auto_float_ids = set()
         # Explicit user manual tiling overrides (Mod+Shift+T)
         self.manually_tiled_ids = set()
+        # Windows temporarily demoted by the daemon itself during dual-float alternating
+        self.daemon_demoted_ids = set()
         # Track previous focused and floating states: wid -> (is_focused, is_floating)
         self.prev_win_states = {}
         # Track workspace split state: ws_id -> {'main_wid': int, 'mode': 'true_fullscreen' | 'maximized'}
@@ -299,6 +301,7 @@ class NiriAutoFloat:
         current_ids = set(win_by_id.keys())
         self.auto_float_ids.intersection_update(current_ids)
         self.manually_tiled_ids.intersection_update(current_ids)
+        self.daemon_demoted_ids.intersection_update(current_ids)
         self.squared_floating_ids.intersection_update(current_ids)
         self.fullscreen_ids.intersection_update(current_ids)
         self.fullscreen_orig_floating = {k: v for k, v in self.fullscreen_orig_floating.items() if k in current_ids}
@@ -419,6 +422,13 @@ class NiriAutoFloat:
             # Detect transition: FLOATING -> TILED (e.g. user pressed Mod+Shift+T to un-float)
             if prev_floating and not cur_floating and not is_true_fs:
                 self.squared_floating_ids.discard(wid)
+                if wid in self.daemon_demoted_ids:
+                    self.daemon_demoted_ids.discard(wid)
+                else:
+                    self.auto_float_ids.discard(wid)
+                    self.manually_tiled_ids.add(wid)
+                    log.info(f"Window {wid} ({w.get('app_id')}) manually tiled; added to manually_tiled_ids")
+
                 was_max = self.was_maximized.pop(wid, None)
                 if was_max == 'true_fullscreen':
                     log.info(f"Restoring window {wid} ({w.get('app_id')}) to true fullscreen")
@@ -429,15 +439,13 @@ class NiriAutoFloat:
                     self.send_action({'ResetWindowHeight': {'id': wid}})
                     self.send_action({'FocusWindow': {'id': wid}})
                     self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
-                    self.send_action({'CenterVisibleColumns': {}})
+                    ws_id = w.get('workspace_id')
+                    ws_tiled_count = sum(1 for win in win_by_id.values() if win.get('workspace_id') == ws_id and not win.get('is_floating'))
+                    if ws_tiled_count >= 2:
+                        self.send_action({'CenterVisibleColumns': {}})
 
             # Track auto-float & manual tiling overrides
-            # 1. Manual tiling override: focused window was floating and user un-floated it (Mod+Shift+T)
-            if prev_floating and not cur_floating and cur_focused and not is_true_fs:
-                self.auto_float_ids.discard(wid)
-                self.manually_tiled_ids.add(wid)
-                log.info(f"Window {wid} ({w.get('app_id')}) manually tiled while focused; added to manually_tiled_ids")
-            # 2. Currently floating: clear manual tiling override and track
+            # 1. Currently floating: clear manual tiling override and track
             elif cur_floating and not self.is_exempt(w):
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
@@ -528,6 +536,7 @@ class NiriAutoFloat:
                     other_id = other['id']
                     if other_id != f_id:
                         log.info(f"Demoting other float window {other_id} ({other.get('app_id')}) to 50% split tile")
+                        self.daemon_demoted_ids.add(other_id)
                         self.send_action({'MoveWindowToTiling': {'id': other_id}})
                         self.send_action({'ResetWindowHeight': {'id': other_id}})
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
@@ -598,7 +607,7 @@ class NiriAutoFloat:
                         ):
                             self.handle_update()
                     except Exception as e:
-                        log.debug(f"Event parse error: {e}")
+                        log.error(f"Event handling error: {e}", exc_info=True)
             except Exception as e:
                 log.warning(f"Connection lost or error: {e}. Reconnecting in 1s...")
                 self.close()

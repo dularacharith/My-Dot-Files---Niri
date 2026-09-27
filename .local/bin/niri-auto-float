@@ -2,10 +2,12 @@
 """
 niri-auto-float:
 Smart dynamic window layout manager for Niri.
-- When focus shifts to a tiled window behind a floating window, the floating window
-  automatically transitions into a tiled column so it never obstructs your workspace.
-- When you focus that window again (via hover, click, or shortcut), it automatically
-  pops back up as a floating window.
+- When focus shifts to a background tiled window, floating windows on that workspace
+  automatically transition into tiled columns so they never obstruct your view.
+- If the background window was in full screen (or full-width maximized), it automatically
+  splits 50/50 side-by-side with the demoted window.
+- When focus shifts back to the floating window, it automatically pops back up as floating
+  and the background window returns to full screen.
 """
 
 import os
@@ -15,6 +17,12 @@ import time
 import socket
 import signal
 import logging
+
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +57,8 @@ class NiriAutoFloat:
         self.auto_float_ids = set()
         # Track previous focused and floating states: wid -> (is_focused, is_floating)
         self.prev_win_states = {}
+        # Track half-split pairs: floating_wid -> {'main_wid': int, 'mode': 'true_fullscreen' | 'maximized'}
+        self.split_pairs = {}
 
     def connect(self):
         self.sock_path = get_niri_socket()
@@ -107,6 +117,34 @@ class NiriAutoFloat:
             log.warning(f"Error querying windows: {e}")
             return None
 
+    def get_workspaces(self):
+        try:
+            if not self.s_cmd or not self.cmd_reader:
+                return []
+            self.s_cmd.sendall(b'"Workspaces"\n')
+            res = self.cmd_reader.readline()
+            if not res:
+                return []
+            data = json.loads(res)
+            return data.get('Ok', {}).get('Workspaces', [])
+        except Exception as e:
+            log.warning(f"Error querying workspaces: {e}")
+            return []
+
+    def get_outputs(self):
+        try:
+            if not self.s_cmd or not self.cmd_reader:
+                return {}
+            self.s_cmd.sendall(b'"Outputs"\n')
+            res = self.cmd_reader.readline()
+            if not res:
+                return {}
+            data = json.loads(res)
+            return data.get('Ok', {}).get('Outputs', {})
+        except Exception as e:
+            log.warning(f"Error querying outputs: {e}")
+            return {}
+
     def is_exempt(self, win):
         if not win:
             return True
@@ -118,45 +156,91 @@ class NiriAutoFloat:
             return True
         return False
 
+    def check_fullscreen(self, win, workspaces, outputs):
+        if not win or win.get('is_floating'):
+            return False, None
+        ws_id = win.get('workspace_id')
+        ws = next((w for w in workspaces if w.get('id') == ws_id), None)
+        if not ws:
+            return False, None
+        out_name = ws.get('output')
+        out = outputs.get(out_name, {}).get('logical')
+        if not out:
+            return False, None
+        
+        out_w = out.get('width', 1920)
+        out_h = out.get('height', 1080)
+        
+        layout = win.get('layout') or {}
+        tile_size = layout.get('tile_size') or [0, 0]
+        
+        # True fullscreen in Niri takes the full logical resolution (zero gaps)
+        if tile_size[0] >= out_w and tile_size[1] >= out_h:
+            return True, 'true_fullscreen'
+        
+        # Maximized / full-width column takes >85% of screen width
+        if tile_size[0] >= 0.85 * out_w:
+            return True, 'maximized'
+            
+        return False, None
+
     def handle_update(self):
         windows = self.get_windows()
         if windows is None:
             return
 
+        workspaces = self.get_workspaces()
+        outputs = self.get_outputs()
+
         win_by_id = {w['id']: w for w in windows}
         focused = next((w for w in windows if w.get('is_focused')), None)
+        if not focused:
+            active_ws = next((ws for ws in workspaces if ws.get('is_focused') or ws.get('is_active')), None)
+            if active_ws and active_ws.get('active_window_id'):
+                focused = win_by_id.get(active_ws['active_window_id'])
 
         # 1. Clean up closed windows
         current_ids = set(win_by_id.keys())
         self.auto_float_ids.intersection_update(current_ids)
 
-        # 2. Check for newly opened floating windows or manual user toggles
+        # If a paired floating window closed, restore the main window
+        for wid in list(self.split_pairs.keys()):
+            if wid not in current_ids:
+                pair_info = self.split_pairs.pop(wid)
+                m_id = pair_info.get('main_wid')
+                mode = pair_info.get('mode')
+                if m_id in win_by_id:
+                    if mode == 'true_fullscreen':
+                        log.info(f"Paired floating window {wid} closed; restoring window {m_id} to true fullscreen")
+                        self.send_action({'FullscreenWindow': {'id': m_id}})
+                    elif mode == 'maximized':
+                        log.info(f"Paired floating window {wid} closed; restoring window {m_id} to full width")
+                        self.send_action({'FocusWindow': {'id': m_id}})
+                        self.send_action('ExpandColumnToAvailableWidth')
+            else:
+                if self.split_pairs[wid].get('main_wid') not in current_ids:
+                    self.split_pairs.pop(wid)
+
+        # 2. Track floating windows and respect explicit user manual tiling
         for wid, w in win_by_id.items():
-            cur_focused = w.get('is_focused', False)
+            cur_focused = (focused is not None and focused.get('id') == wid)
             cur_floating = w.get('is_floating', False)
 
-            if wid not in self.prev_win_states:
-                # Newly opened window
-                if cur_floating and not self.is_exempt(w):
+            if cur_floating and not self.is_exempt(w):
+                if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
-                    log.info(f"Registered floating window {wid} ({w.get('app_id')})")
-            else:
+                    log.info(f"Tracking floating window {wid} ({w.get('app_id')})")
+            elif wid in self.prev_win_states:
                 prev_focused, prev_floating = self.prev_win_states[wid]
-                # If window was focused and user manually toggled floating state:
-                if prev_focused and cur_focused:
-                    if prev_floating and not cur_floating:
-                        # User explicitly tiled this window (e.g. Mod+Shift+T)
-                        self.auto_float_ids.discard(wid)
-                        log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
-                    elif not prev_floating and cur_floating:
-                        # User explicitly floated this window
-                        if not self.is_exempt(w):
-                            self.auto_float_ids.add(wid)
-                            log.info(f"Window {wid} manually floated while focused; added to auto-float")
+                # If window was floating and user manually tiled it while focused (Mod+Shift+T):
+                if prev_floating and not cur_floating and cur_focused:
+                    self.auto_float_ids.discard(wid)
+                    self.split_pairs.pop(wid, None)
+                    log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
 
         # Update tracked states
         self.prev_win_states = {
-            wid: (w.get('is_focused', False), w.get('is_floating', False))
+            wid: (focused is not None and focused.get('id') == wid, w.get('is_floating', False))
             for wid, w in win_by_id.items()
         }
 
@@ -172,11 +256,28 @@ class NiriAutoFloat:
             log.info(f"Promoting focused window {f_id} ({focused.get('app_id')}) back to floating!")
             self.send_action({'MoveWindowToFloating': {'id': f_id}})
             self.prev_win_states[f_id] = (True, True)
+
+            # Check if this floating window was paired with a fullscreen/maximized window in a half-split
+            if f_id in self.split_pairs:
+                pair_info = self.split_pairs.pop(f_id)
+                m_id = pair_info.get('main_wid')
+                mode = pair_info.get('mode')
+                if m_id in win_by_id:
+                    if mode == 'true_fullscreen':
+                        log.info(f"Restoring paired window {m_id} to true fullscreen")
+                        self.send_action({'FullscreenWindow': {'id': m_id}})
+                    elif mode == 'maximized':
+                        log.info(f"Restoring paired window {m_id} to full width")
+                        self.send_action({'FocusWindow': {'id': m_id}})
+                        self.send_action('ExpandColumnToAvailableWidth')
+                        self.send_action({'FocusWindow': {'id': f_id}})
             return
 
         # 4. If focused window is a TILED window on this workspace:
         # Demote any other floating window on THIS workspace to tiling so it won't obstruct
         if not f_floating:
+            is_fs, fs_mode = self.check_fullscreen(focused, workspaces, outputs)
+
             for wid, w in win_by_id.items():
                 if wid != f_id and w.get('workspace_id') == f_ws and w.get('is_floating'):
                     if self.is_exempt(w):
@@ -186,24 +287,56 @@ class NiriAutoFloat:
                     self.send_action({'MoveWindowToTiling': {'id': wid}})
                     self.prev_win_states[wid] = (False, False)
 
+                    if is_fs:
+                        log.info(f"Focused window {f_id} was {fs_mode}; splitting into half-screen with {wid}")
+                        self.split_pairs[wid] = {'main_wid': f_id, 'mode': fs_mode}
+
+                        if fs_mode == 'true_fullscreen':
+                            # Exit fullscreen on focused window so it tiles
+                            self.send_action({'FullscreenWindow': {'id': f_id}})
+
+                        # Set focused window column to 50%
+                        self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
+                        # Set demoted window column to 50%
+                        self.send_action({'FocusWindow': {'id': wid}})
+                        self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
+                        # Refocus original focused window
+                        self.send_action({'FocusWindow': {'id': f_id}})
+                        # Center visible columns side-by-side
+                        self.send_action('CenterVisibleColumns')
+
     def run(self):
         log.info("Starting Niri Auto-Float Daemon...")
         while self.running:
             try:
                 self.connect()
+                # Consume handshake
+                handshake = self.event_reader.readline()
+                log.info(f"EventStream handshake: {handshake.strip() if handshake else 'None'}")
+
                 # Initial state sync
                 self.handle_update()
 
-                for line in self.event_reader:
-                    if not self.running:
+                while self.running:
+                    line = self.event_reader.readline()
+                    if not line:
                         break
                     line = line.strip()
                     if not line:
                         continue
+                    log.info(f"Event received: {line[:100]}")
                     try:
                         data = json.loads(line)
                         k = list(data.keys())[0]
-                        if k in ("WindowOpenedOrChanged", "WindowClosed", "WindowFocusChanged", "WorkspaceActiveWindowChanged"):
+                        if k in (
+                            "WindowOpenedOrChanged",
+                            "WindowClosed",
+                            "WindowFocusChanged",
+                            "WorkspaceActiveWindowChanged",
+                            "WorkspacesChanged",
+                            "WindowsChanged",
+                            "WindowLayoutsChanged"
+                        ):
                             self.handle_update()
                     except Exception as e:
                         log.debug(f"Event parse error: {e}")

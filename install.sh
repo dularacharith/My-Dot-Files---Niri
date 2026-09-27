@@ -343,10 +343,12 @@ setup_systemd() {
 
     if command -v systemctl &>/dev/null; then
         systemctl --user daemon-reload 2>/dev/null || true
+        systemctl --user enable niri-auto-float.service 2>/dev/null || true
         
         # If running inside graphical session, restart or start service
         if [ -n "${WAYLAND_DISPLAY:-}" ]; then
             systemctl --user restart dms.service 2>/dev/null || true
+            systemctl --user restart niri-auto-float.service 2>/dev/null || true
         fi
         log_success "Systemd user services enabled."
     fi
@@ -373,6 +375,7 @@ main() {
     echo ""
     echo -e "${BOLD}What's configured:${NC}"
     echo "  - Niri with custom cubic-bezier shaders & smooth window-resize"
+    echo "  - Niri Auto-Float Dynamic Manager (automatic tile-on-unfocus & float-on-refocus)"
     echo "  - Dank Material Shell (DMS) on Layer::Top with auto-sync"
     echo "  - Windows Snipping Tool (Mod+Shift+S)"
     echo "  - Wallpaper Controller: wallpaper-ctl (next, prev, random)"

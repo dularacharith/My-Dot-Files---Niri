@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""
+niri-auto-float:
+Smart dynamic window layout manager for Niri.
+- When focus shifts to a tiled window behind a floating window, the floating window
+  automatically transitions into a tiled column so it never obstructs your workspace.
+- When you focus that window again (via hover, click, or shortcut), it automatically
+  pops back up as a floating window.
+"""
+
+import os
+import sys
+import json
+import time
+import socket
+import signal
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+log = logging.getLogger("niri-auto-float")
+
+def get_niri_socket():
+    sock = os.environ.get("NIRI_SOCKET")
+    if sock and os.path.exists(sock):
+        return sock
+    uid = os.getuid()
+    run_dir = f"/run/user/{uid}"
+    if os.path.isdir(run_dir):
+        for f in os.listdir(run_dir):
+            if f.startswith("niri.") and f.endswith(".sock"):
+                candidate = os.path.join(run_dir, f)
+                if os.path.exists(candidate):
+                    return candidate
+    return None
+
+class NiriAutoFloat:
+    def __init__(self):
+        self.sock_path = None
+        self.s_cmd = None
+        self.cmd_reader = None
+        self.s_event = None
+        self.event_reader = None
+        self.running = True
+        
+        # Window IDs that should float when focused
+        self.auto_float_ids = set()
+        # Track previous focused and floating states: wid -> (is_focused, is_floating)
+        self.prev_win_states = {}
+
+    def connect(self):
+        self.sock_path = get_niri_socket()
+        if not self.sock_path:
+            raise RuntimeError("NIRI_SOCKET not found")
+            
+        log.info(f"Connecting to Niri socket: {self.sock_path}")
+        self.s_cmd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.s_cmd.connect(self.sock_path)
+        self.cmd_reader = self.s_cmd.makefile('r')
+
+        self.s_event = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.s_event.connect(self.sock_path)
+        self.s_event.sendall(b'"EventStream"\n')
+        self.event_reader = self.s_event.makefile('r')
+
+    def close(self):
+        for s in (self.s_cmd, self.s_event):
+            if s:
+                try:
+                    s.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+                try:
+                    s.close()
+                except Exception:
+                    pass
+        self.s_cmd = None
+        self.cmd_reader = None
+        self.s_event = None
+        self.event_reader = None
+
+    def send_action(self, action_dict):
+        try:
+            if not self.s_cmd or not self.cmd_reader:
+                return None
+            req = json.dumps({'Action': action_dict}) + '\n'
+            self.s_cmd.sendall(req.encode())
+            res = self.cmd_reader.readline()
+            return json.loads(res) if res else None
+        except Exception as e:
+            log.warning(f"Error sending action {action_dict}: {e}")
+            return None
+
+    def get_windows(self):
+        try:
+            if not self.s_cmd or not self.cmd_reader:
+                return None
+            self.s_cmd.sendall(b'"Windows"\n')
+            res = self.cmd_reader.readline()
+            if not res:
+                return None
+            data = json.loads(res)
+            return data.get('Ok', {}).get('Windows', [])
+        except Exception as e:
+            log.warning(f"Error querying windows: {e}")
+            return None
+
+    def is_exempt(self, win):
+        if not win:
+            return True
+        title = (win.get('title') or '').lower()
+        app_id = (win.get('app_id') or '').lower()
+        if 'picture-in-picture' in title or 'picture-in-picture' in app_id:
+            return True
+        if 'toast' in app_id or 'overlay' in app_id or 'polkit' in app_id or 'pinentry' in app_id:
+            return True
+        return False
+
+    def handle_update(self):
+        windows = self.get_windows()
+        if windows is None:
+            return
+
+        win_by_id = {w['id']: w for w in windows}
+        focused = next((w for w in windows if w.get('is_focused')), None)
+
+        # 1. Clean up closed windows
+        current_ids = set(win_by_id.keys())
+        self.auto_float_ids.intersection_update(current_ids)
+
+        # 2. Check for newly opened floating windows or manual user toggles
+        for wid, w in win_by_id.items():
+            cur_focused = w.get('is_focused', False)
+            cur_floating = w.get('is_floating', False)
+
+            if wid not in self.prev_win_states:
+                # Newly opened window
+                if cur_floating and not self.is_exempt(w):
+                    self.auto_float_ids.add(wid)
+                    log.info(f"Registered floating window {wid} ({w.get('app_id')})")
+            else:
+                prev_focused, prev_floating = self.prev_win_states[wid]
+                # If window was focused and user manually toggled floating state:
+                if prev_focused and cur_focused:
+                    if prev_floating and not cur_floating:
+                        # User explicitly tiled this window (e.g. Mod+Shift+T)
+                        self.auto_float_ids.discard(wid)
+                        log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
+                    elif not prev_floating and cur_floating:
+                        # User explicitly floated this window
+                        if not self.is_exempt(w):
+                            self.auto_float_ids.add(wid)
+                            log.info(f"Window {wid} manually floated while focused; added to auto-float")
+
+        # Update tracked states
+        self.prev_win_states = {
+            wid: (w.get('is_focused', False), w.get('is_floating', False))
+            for wid, w in win_by_id.items()
+        }
+
+        if not focused:
+            return
+
+        f_id = focused['id']
+        f_ws = focused.get('workspace_id')
+        f_floating = focused.get('is_floating', False)
+
+        # 3. If focused window is currently tiled, but was marked for auto-float:
+        if f_id in self.auto_float_ids and not f_floating:
+            log.info(f"Promoting focused window {f_id} ({focused.get('app_id')}) back to floating!")
+            self.send_action({'MoveWindowToFloating': {'id': f_id}})
+            self.prev_win_states[f_id] = (True, True)
+            return
+
+        # 4. If focused window is a TILED window on this workspace:
+        # Demote any other floating window on THIS workspace to tiling so it won't obstruct
+        if not f_floating:
+            for wid, w in win_by_id.items():
+                if wid != f_id and w.get('workspace_id') == f_ws and w.get('is_floating'):
+                    if self.is_exempt(w):
+                        continue
+                    log.info(f"Demoting floating window {wid} ({w.get('app_id')}) to tiling layout")
+                    self.auto_float_ids.add(wid)
+                    self.send_action({'MoveWindowToTiling': {'id': wid}})
+                    self.prev_win_states[wid] = (False, False)
+
+    def run(self):
+        log.info("Starting Niri Auto-Float Daemon...")
+        while self.running:
+            try:
+                self.connect()
+                # Initial state sync
+                self.handle_update()
+
+                for line in self.event_reader:
+                    if not self.running:
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        k = list(data.keys())[0]
+                        if k in ("WindowOpenedOrChanged", "WindowClosed", "WindowFocusChanged", "WorkspaceActiveWindowChanged"):
+                            self.handle_update()
+                    except Exception as e:
+                        log.debug(f"Event parse error: {e}")
+            except Exception as e:
+                log.warning(f"Connection lost or error: {e}. Reconnecting in 1s...")
+                self.close()
+                time.sleep(1.0)
+
+def main():
+    daemon = NiriAutoFloat()
+
+    def handle_signal(sig, frame):
+        log.info(f"Caught signal {sig}, exiting...")
+        daemon.running = False
+        daemon.close()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
+    daemon.run()
+
+if __name__ == "__main__":
+    main()

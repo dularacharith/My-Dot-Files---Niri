@@ -1,0 +1,13 @@
+[Unit]
+Description=Niri Auto-Float Dynamic Window Manager
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/niri-auto-float
+Restart=always
+RestartSec=1s
+
+[Install]
+WantedBy=graphical-session.target niri.service

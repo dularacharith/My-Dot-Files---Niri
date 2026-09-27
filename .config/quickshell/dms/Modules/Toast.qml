@@ -24,7 +24,7 @@ PanelWindow {
     Connections {
         target: ToastService
         function onToastVisibleChanged() {
-            if (ToastService.toastVisible) {
+            if (ToastService.toastVisible && ToastService.currentMessage && ToastService.currentMessage.length > 0) {
                 shouldBeVisible = true;
                 visible = true;
             } else {

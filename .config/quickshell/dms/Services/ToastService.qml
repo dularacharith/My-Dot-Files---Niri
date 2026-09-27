@@ -31,6 +31,10 @@ Singleton {
     }
 
     function showToast(message, level = levelInfo, details = "", command = "", category = "") {
+        if (!message || message.trim().length === 0) {
+            return;
+        }
+
         const now = Date.now();
         const messageKey = message + level;
 
@@ -125,12 +129,6 @@ Singleton {
 
     function hideToast() {
         toastVisible = false;
-        currentMessage = "";
-        currentDetails = "";
-        currentCommand = "";
-        currentCategory = "";
-        hasDetails = false;
-        currentLevel = levelInfo;
         toastTimer.stop();
         resetToastState();
         if (toastQueue.length > 0) {

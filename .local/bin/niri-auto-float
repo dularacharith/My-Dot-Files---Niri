@@ -212,7 +212,7 @@ class NiriAutoFloat:
             
         return False, None
 
-    def make_centered_square(self, win, wid, workspaces, outputs):
+    def make_centered_rectangle(self, win, wid, workspaces, outputs):
         if not win or self.is_exempt(win):
             return
 
@@ -224,12 +224,13 @@ class NiriAutoFloat:
         out_w = out.get('width', 1536) if out else 1536
         out_h = out.get('height', 864) if out else 864
 
-        # Compute square size (~70% of screen height, rounded to nearest 20 for clean pixel alignment)
-        square_size = int(round(out_h * 0.70 / 20.0) * 20)
+        # Compute comfortable rectangular floating dimensions (~1.45 aspect ratio, ~68% screen height)
+        rect_h = int(round(out_h * 0.68 / 20.0) * 20)
+        rect_w = int(round(rect_h * 1.45 / 20.0) * 20)
 
-        log.info(f"Sizing floating window {wid} ({win.get('app_id')}) to centered square: {square_size}x{square_size}")
-        self.send_action({'SetWindowWidth': {'id': wid, 'change': {'SetFixed': square_size}}})
-        self.send_action({'SetWindowHeight': {'id': wid, 'change': {'SetFixed': square_size}}})
+        log.info(f"Sizing floating window {wid} ({win.get('app_id')}) to centered rectangle: {rect_w}x{rect_h}")
+        self.send_action({'SetWindowWidth': {'id': wid, 'change': {'SetFixed': rect_w}}})
+        self.send_action({'SetWindowHeight': {'id': wid, 'change': {'SetFixed': rect_h}}})
         self.send_action({'CenterWindow': {'id': wid}})
 
         # Secondary center after client attaches the resized buffer (~80ms)
@@ -296,11 +297,11 @@ class NiriAutoFloat:
                 mode = split_info.get('mode')
                 log.info(f"Only 1 float window ({f_rem_id}) remains on ws {ws_id}; restoring {f_rem_id} to float and {m_id} to {mode}")
 
-                # 1. Ensure the remaining window is floating and centered square
+                # 1. Ensure the remaining window is floating and centered rectangle
                 if not f_rem.get('is_floating'):
                     self.send_action({'MoveWindowToFloating': {'id': f_rem_id}})
                     self.prev_win_states[f_rem_id] = (True, True)
-                self.make_centered_square(f_rem, f_rem_id, workspaces, outputs)
+                self.make_centered_rectangle(f_rem, f_rem_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_rem_id)
 
                 # 2. Restore the background window to maximized / fullscreen
@@ -350,7 +351,7 @@ class NiriAutoFloat:
                 was_max = self.was_maximized.get(wid)
                 log.info(f"Window {wid} ({w.get('app_id')}) became floating (was_max={was_max})")
                 if wid not in self.squared_floating_ids:
-                    self.make_centered_square(w, wid, workspaces, outputs)
+                    self.make_centered_rectangle(w, wid, workspaces, outputs)
                     self.squared_floating_ids.add(wid)
 
             # Detect transition: FLOATING -> TILED (e.g. user pressed Mod+Shift+T to un-float)
@@ -426,10 +427,10 @@ class NiriAutoFloat:
                 self.send_action({'MoveWindowToFloating': {'id': f_id}})
                 self.prev_win_states[f_id] = (True, True)
                 f_floating = True
-                self.make_centered_square(focused, f_id, workspaces, outputs)
+                self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
             elif f_id not in self.squared_floating_ids:
-                self.make_centered_square(focused, f_id, workspaces, outputs)
+                self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
 
             # SUBCASE 3A: TWO OR MORE FLOAT WINDOWS ON THIS WORKSPACE

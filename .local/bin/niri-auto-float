@@ -231,6 +231,11 @@ class NiriAutoFloat:
             return True
         if 'toast' in app_id or 'overlay' in app_id or 'polkit' in app_id or 'pinentry' in app_id or 'portal' in app_id:
             return True
+        if any(k in app_id for k in (
+            'displaymanager', 'display-manager', 'dms', 'gnome-control-center',
+            'settings', 'snipping', 'signal', 'senpai', 'pavucontrol', 'nm-connection-editor'
+        )) or any(k in title for k in ('settings', 'display manager', 'snipping tool', 'senpai')):
+            return True
         return False
 
     def is_default_floating(self, win):
@@ -285,6 +290,8 @@ class NiriAutoFloat:
 
     def make_centered_rectangle(self, win, wid, workspaces, outputs):
         if not win or self.is_exempt(win) or wid in self.fullscreen_ids:
+            return
+        if not self.is_default_floating(win):
             return
 
         ws_id = win.get('workspace_id')
@@ -466,7 +473,8 @@ class NiriAutoFloat:
                 was_max = self.was_maximized.get(wid)
                 log.info(f"Window {wid} ({w.get('app_id')}) became floating (was_max={was_max})")
                 if wid not in self.squared_floating_ids:
-                    self.make_centered_rectangle(w, wid, workspaces, outputs)
+                    if self.is_default_floating(w):
+                        self.make_centered_rectangle(w, wid, workspaces, outputs)
                     self.squared_floating_ids.add(wid)
 
             # Detect transition: FLOATING -> TILED (e.g. user pressed Mod+Shift+T to un-float)
@@ -559,10 +567,12 @@ class NiriAutoFloat:
                 self.send_action({'MoveWindowToFloating': {'id': f_id}})
                 self.prev_win_states[f_id] = (True, True)
                 f_floating = True
-                self.make_centered_rectangle(focused, f_id, workspaces, outputs)
+                if self.is_default_floating(focused):
+                    self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
             elif f_floating and f_id not in self.squared_floating_ids:
-                self.make_centered_rectangle(focused, f_id, workspaces, outputs)
+                if self.is_default_floating(focused):
+                    self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
 
             # If the focused float window was tucked to the edge, restore it to its original position

@@ -320,7 +320,7 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application)
         self.set_title("Display Manager")
-        self.set_default_size(860, 720)
+        self.set_default_size(840, 740)
 
         # Allow pressing Escape to close
         key_ctrl = Gtk.EventControllerKey.new()

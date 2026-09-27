@@ -18,4 +18,7 @@ binds {
     XF86AudioNext allow-when-locked=true { spawn "fn-feedback" "media" "next"; }
     XF86AudioPrev allow-when-locked=true { spawn "fn-feedback" "media" "prev"; }
     XF86AudioStop allow-when-locked=true { spawn "fn-feedback" "media" "stop"; }
+
+    // Display & Multi-Monitor Manager GUI
+    Mod+P { spawn "niri-display-manager"; }
 }

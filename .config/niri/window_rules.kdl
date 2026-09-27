@@ -134,3 +134,11 @@ window-rule {
   draw-border-with-background false
   default-floating-position x=1140 y=720 relative-to="top-left"
 }
+
+// Display Manager rule
+window-rule {
+  match app-id="^com.dms.displaymanager$"
+  open-floating true
+  default-column-width { fixed 840; }
+  default-window-height { fixed 740; }
+}

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Display Manager
+Comment=Manage display resolution, scaling, and multi-monitor projection
+Exec=niri-display-manager
+Icon=preferences-desktop-display
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;
+Keywords=display;monitor;screen;resolution;scale;mirror;extend;
+StartupWMClass=com.dms.displaymanager

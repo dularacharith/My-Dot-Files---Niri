@@ -282,11 +282,7 @@ class NiriAutoFloat:
                 if wid != f_id and w.get('workspace_id') == f_ws and w.get('is_floating'):
                     if self.is_exempt(w):
                         continue
-                    log.info(f"Demoting floating window {wid} ({w.get('app_id')}) to tiling layout")
                     self.auto_float_ids.add(wid)
-                    self.send_action({'MoveWindowToTiling': {'id': wid}})
-                    self.prev_win_states[wid] = (False, False)
-
                     if is_fs:
                         log.info(f"Focused window {f_id} was {fs_mode}; splitting into half-screen with {wid}")
                         self.split_pairs[wid] = {'main_wid': f_id, 'mode': fs_mode}
@@ -297,6 +293,12 @@ class NiriAutoFloat:
 
                         # Set focused window column to 50%
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
+
+                    log.info(f"Demoting floating window {wid} ({w.get('app_id')}) to tiling layout")
+                    self.send_action({'MoveWindowToTiling': {'id': wid}})
+                    self.prev_win_states[wid] = (False, False)
+
+                    if is_fs:
                         # Center visible columns side-by-side
                         self.send_action('CenterVisibleColumns')
 

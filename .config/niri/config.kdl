@@ -161,11 +161,11 @@ prefer-no-csd
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 animations {
     workspace-switch {
-        spring damping-ratio=0.92 stiffness=280 epsilon=0.0001
+        spring damping-ratio=0.92 stiffness=750 epsilon=0.0001
     }
 
     window-open {
-        duration-ms 350
+        duration-ms 280
         curve "cubic-bezier" 0.05 0.9 0.1 1.0
         custom-shader r"
             vec4 open_color(vec3 coords_geo, vec3 size_geo) {
@@ -182,7 +182,7 @@ animations {
     }
 
     window-close {
-        duration-ms 280
+        duration-ms 240
         curve "cubic-bezier" 0.25 0.0 0.75 0.0
         custom-shader r"
             vec4 close_color(vec3 coords_geo, vec3 size_geo) {
@@ -203,35 +203,15 @@ animations {
     }
 
     horizontal-view-movement {
-        spring damping-ratio=0.92 stiffness=280 epsilon=0.0001
+        spring damping-ratio=0.92 stiffness=750 epsilon=0.0001
     }
 
     window-movement {
-        duration-ms 350
-        curve "ease-out-cubic"
+        spring damping-ratio=0.92 stiffness=750 epsilon=0.0001
     }
 
     window-resize {
-        duration-ms 350
-        curve "ease-out-cubic"
-        custom-shader r"
-            vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
-                vec3 coords_tex_prev = niri_geo_to_tex_prev * coords_curr_geo;
-                vec4 color_prev = texture2D(niri_tex_prev, coords_tex_prev.st);
-
-                vec3 coords_tex_next = niri_geo_to_tex_next * coords_curr_geo;
-                vec4 color_next = texture2D(niri_tex_next, coords_tex_next.st);
-
-                bool is_growing = niri_curr_geo_to_next_geo[0][0] <= 1.0 && niri_curr_geo_to_next_geo[1][1] <= 1.0;
-
-                if (is_growing) {
-                    float fade = smoothstep(0.5, 1.0, niri_clamped_progress);
-                    return mix(color_prev, color_next, fade);
-                } else {
-                    return mix(color_prev, color_next, niri_clamped_progress);
-                }
-            }
-        "
+        spring damping-ratio=0.92 stiffness=750 epsilon=0.0001
     }
 
     config-notification-open-close {

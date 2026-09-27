@@ -211,7 +211,54 @@ animations {
     }
 
     window-resize {
-        spring damping-ratio=0.92 stiffness=750 epsilon=0.0001
+        duration-ms 320
+        curve "cubic-bezier" 0.05 0.9 0.1 1.0
+        custom-shader r"
+            vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
+                float w_curr = max(1.0, size_curr_geo.x);
+                float h_curr = max(1.0, size_curr_geo.y);
+                float aspect_curr = w_curr / h_curr;
+
+                float scale_x_prev = max(0.0001, abs(niri_curr_geo_to_prev_geo[0][0]));
+                float scale_y_prev = max(0.0001, abs(niri_curr_geo_to_prev_geo[1][1]));
+                float aspect_prev = (w_curr / scale_x_prev) / max(1.0, (h_curr / scale_y_prev));
+
+                float scale_x_next = max(0.0001, abs(niri_curr_geo_to_next_geo[0][0]));
+                float scale_y_next = max(0.0001, abs(niri_curr_geo_to_next_geo[1][1]));
+                float aspect_next = (w_curr / scale_x_next) / max(1.0, (h_curr / scale_y_next));
+
+                float p = niri_clamped_progress;
+                float target_aspect = mix(aspect_prev, aspect_next, p);
+
+                vec2 uv = coords_curr_geo.xy;
+                vec2 centered = uv - vec2(0.5, 0.5);
+
+                if (aspect_curr > target_aspect) {
+                    float s = target_aspect / max(0.0001, aspect_curr);
+                    centered.x /= s;
+                } else {
+                    float s = aspect_curr / max(0.0001, target_aspect);
+                    centered.y /= s;
+                }
+
+                vec2 corrected_uv = centered + vec2(0.5, 0.5);
+
+                vec3 coords_tex_prev = niri_geo_to_tex_prev * vec3(corrected_uv, 1.0);
+                vec4 color_prev = texture2D(niri_tex_prev, coords_tex_prev.st);
+
+                vec3 coords_tex_next = niri_geo_to_tex_next * vec3(corrected_uv, 1.0);
+                vec4 color_next = texture2D(niri_tex_next, coords_tex_next.st);
+
+                if (corrected_uv.x < 0.0 || corrected_uv.x > 1.0 || corrected_uv.y < 0.0 || corrected_uv.y > 1.0) {
+                    float bg_alpha = max(color_prev.a, color_next.a);
+                    return vec4(0.0, 0.0, 0.0, bg_alpha);
+                }
+
+                float blend = smoothstep(0.35, 0.75, p);
+                vec4 color = mix(color_prev, color_next, blend);
+                return color;
+            }
+        "
     }
 
     config-notification-open-close {

@@ -123,61 +123,75 @@ PanelWindow {
             spacing: Theme.spacingS
 
             Item {
+                id: headerItem
                 width: parent.width
                 height: Math.max(Theme.iconSize + 8, messageText.implicitHeight)
 
-                DankIcon {
-                    id: statusIcon
-                    name: {
-                        if (ToastService.currentCategory && ToastService.currentCategory.length > 0 && !ToastService.isStickyCategory(ToastService.currentCategory) && ToastService.currentCategory !== "niri-config" && ToastService.currentCategory !== "mango-config") {
-                            return ToastService.currentCategory;
-                        }
-                        switch (ToastService.currentLevel) {
-                        case ToastService.levelError:
-                            return "error";
-                        case ToastService.levelWarn:
-                            return "warning";
-                        case ToastService.levelInfo:
-                            return "info";
-                        default:
-                            return "info";
-                        }
-                    }
-                    size: Theme.iconSize
-                    color: {
-                        switch (ToastService.currentLevel) {
-                        case ToastService.levelError:
-                        case ToastService.levelWarn:
-                            return SessionData.isLightMode ? Theme.surfaceText : Theme.background;
-                        default:
-                            return Theme.surfaceText;
-                        }
-                    }
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+                readonly property bool hasButtons: ToastService.hasDetails || ToastService.currentLevel === ToastService.levelError || ToastService.isStickyCategory(ToastService.currentCategory)
 
-                StyledText {
-                    id: messageText
-                    text: ToastService.currentMessage
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: {
-                        switch (ToastService.currentLevel) {
-                        case ToastService.levelError:
-                        case ToastService.levelWarn:
-                            return SessionData.isLightMode ? Theme.surfaceText : Theme.background;
-                        default:
-                            return Theme.surfaceText;
-                        }
-                    }
-                    font.weight: Font.Medium
-                    anchors.left: statusIcon.right
-                    anchors.leftMargin: Theme.spacingM
-                    anchors.right: ToastService.hasDetails ? expandButton.left : parent.right
-                    anchors.rightMargin: ToastService.hasDetails ? Theme.spacingS : 0
+                Item {
+                    id: statusGroup
+                    anchors.centerIn: !headerItem.hasButtons ? parent : undefined
+                    anchors.left: headerItem.hasButtons ? parent.left : undefined
+                    anchors.right: headerItem.hasButtons ? (ToastService.hasDetails ? expandButton.left : closeButton.left) : undefined
                     anchors.verticalCenter: parent.verticalCenter
-                    elide: Text.ElideRight
-                    wrapMode: Text.NoWrap
+                    width: !headerItem.hasButtons ? (statusIcon.width + Theme.spacingM + messageText.implicitWidth) : undefined
+                    height: parent.height
+
+                    DankIcon {
+                        id: statusIcon
+                        name: {
+                            if (ToastService.currentCategory && ToastService.currentCategory.length > 0 && !ToastService.isStickyCategory(ToastService.currentCategory) && ToastService.currentCategory !== "niri-config" && ToastService.currentCategory !== "mango-config") {
+                                return ToastService.currentCategory;
+                            }
+                            switch (ToastService.currentLevel) {
+                            case ToastService.levelError:
+                                return "error";
+                            case ToastService.levelWarn:
+                                return "warning";
+                            case ToastService.levelInfo:
+                                return "info";
+                            default:
+                                return "info";
+                            }
+                        }
+                        size: Theme.iconSize
+                        color: {
+                            switch (ToastService.currentLevel) {
+                            case ToastService.levelError:
+                            case ToastService.levelWarn:
+                                return SessionData.isLightMode ? Theme.surfaceText : Theme.background;
+                            default:
+                                return Theme.surfaceText;
+                            }
+                        }
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    StyledText {
+                        id: messageText
+                        text: ToastService.currentMessage
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: {
+                            switch (ToastService.currentLevel) {
+                            case ToastService.levelError:
+                            case ToastService.levelWarn:
+                                return SessionData.isLightMode ? Theme.surfaceText : Theme.background;
+                            default:
+                                return Theme.surfaceText;
+                            }
+                        }
+                        font.weight: Font.Medium
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.left: statusIcon.right
+                        anchors.leftMargin: Theme.spacingM
+                        anchors.right: headerItem.hasButtons ? parent.right : undefined
+                        anchors.rightMargin: headerItem.hasButtons ? Theme.spacingS : 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        elide: Text.ElideRight
+                        wrapMode: Text.NoWrap
+                    }
                 }
 
                 DankActionButton {

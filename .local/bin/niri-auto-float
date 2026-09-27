@@ -76,6 +76,10 @@ class NiriAutoFloat:
         self.was_maximized = {}
         # Track floating windows that have been made centered rectangle
         self.squared_floating_ids = set()
+        # Track floating windows currently tucked to the screen edge
+        self.tucked_floating_ids = set()
+        # Track original position of tucked floating windows: wid -> [orig_x, orig_y]
+        self.tucked_floating_orig_pos = {}
         # Track windows currently in true fullscreen
         self.fullscreen_ids = set()
         # Track if window was floating before entering true fullscreen: wid -> bool
@@ -262,7 +266,7 @@ class NiriAutoFloat:
         # Secondary center after client attaches the resized buffer (~80ms)
         def delayed_center():
             try:
-                if wid not in self.fullscreen_ids:
+                if wid not in self.fullscreen_ids and wid not in self.tucked_floating_ids:
                     self.send_action({'CenterWindow': {'id': wid}})
             except Exception:
                 pass
@@ -303,6 +307,8 @@ class NiriAutoFloat:
         self.manually_tiled_ids.intersection_update(current_ids)
         self.daemon_demoted_ids.intersection_update(current_ids)
         self.squared_floating_ids.intersection_update(current_ids)
+        self.tucked_floating_ids.intersection_update(current_ids)
+        self.tucked_floating_orig_pos = {k: v for k, v in self.tucked_floating_orig_pos.items() if k in current_ids}
         self.fullscreen_ids.intersection_update(current_ids)
         self.fullscreen_orig_floating = {k: v for k, v in self.fullscreen_orig_floating.items() if k in current_ids}
         self.was_maximized = {wid: m for wid, m in self.was_maximized.items() if wid in current_ids}
@@ -376,14 +382,18 @@ class NiriAutoFloat:
                 if wid not in self.fullscreen_ids:
                     log.info(f"Window {wid} ({w.get('app_id')}) entered true fullscreen")
                     self.fullscreen_ids.add(wid)
+                    self.manually_tiled_ids.discard(wid)
                     self.fullscreen_orig_floating[wid] = (
                         prev_floating or cur_floating or self.is_default_floating(w) or wid in self.auto_float_ids
                     )
                     self.squared_floating_ids.discard(wid)
+                    self.tucked_floating_ids.discard(wid)
+                    self.tucked_floating_orig_pos.pop(wid, None)
             else:
                 if wid in self.fullscreen_ids:
                     log.info(f"Window {wid} ({w.get('app_id')}) exited true fullscreen")
                     self.fullscreen_ids.discard(wid)
+                    self.manually_tiled_ids.discard(wid)
                     orig_floating = (
                         self.fullscreen_orig_floating.pop(wid, False)
                         or self.is_default_floating(w)
@@ -422,6 +432,8 @@ class NiriAutoFloat:
             # Detect transition: FLOATING -> TILED (e.g. user pressed Mod+Shift+T to un-float)
             if prev_floating and not cur_floating and not is_true_fs:
                 self.squared_floating_ids.discard(wid)
+                self.tucked_floating_ids.discard(wid)
+                self.tucked_floating_orig_pos.pop(wid, None)
                 if wid in self.daemon_demoted_ids:
                     self.daemon_demoted_ids.discard(wid)
                 else:
@@ -513,6 +525,16 @@ class NiriAutoFloat:
                 self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
 
+            # If the focused float window was tucked to the edge, restore it to its original position
+            if f_id in self.tucked_floating_ids:
+                log.info(f"Tucked floating window {f_id} gained focus; restoring to original position")
+                orig_pos = self.tucked_floating_orig_pos.pop(f_id, None)
+                self.tucked_floating_ids.discard(f_id)
+                if orig_pos:
+                    self.send_action({'MoveFloatingWindow': {'id': f_id, 'x': {'SetFixed': float(orig_pos[0])}, 'y': {'SetFixed': float(orig_pos[1])}}})
+                else:
+                    self.send_action({'CenterWindow': {'id': f_id}})
+
             # SUBCASE 3A: TWO OR MORE FLOAT WINDOWS ON THIS WORKSPACE
             # Maintain 50/50 split with background window, looping between the float windows
             if num_floats >= 2:
@@ -569,8 +591,37 @@ class NiriAutoFloat:
                 return
 
         # 4. IF FOCUSED WINDOW IS A TILED BACKGROUND WINDOW:
-        # Leave floating windows floating untouched and preserve column tiling layout.
+        # Tuck floating windows on this workspace to the screen edge so background window is completely visible
         if not f_floating and not is_float_target:
+            for w in float_wins:
+                wid = w['id']
+                if w.get('is_floating') and wid not in self.tucked_floating_ids and wid not in self.fullscreen_ids:
+                    layout = w.get('layout') or {}
+                    cur_pos = layout.get('tile_pos_in_workspace_view')
+
+                    ws_id = w.get('workspace_id')
+                    ws = next((ws for ws in workspaces if ws.get('id') == ws_id), None)
+                    out_name = ws.get('output') if ws else None
+                    out = outputs.get(out_name, {}).get('logical') if out_name else None
+                    out_w = out.get('width', 1536) if out else 1536
+                    out_h = out.get('height', 864) if out else 864
+
+                    peek_margin = 90
+                    tuck_x = float(out_w - peek_margin)
+
+                    if cur_pos and cur_pos[0] < (out_w - peek_margin - 50):
+                        self.tucked_floating_orig_pos[wid] = list(cur_pos)
+                        log.info(f"Saved orig pos for floating window {wid}: {cur_pos}")
+                    elif wid not in self.tucked_floating_orig_pos:
+                        tile_size = layout.get('tile_size') or [840, 580]
+                        default_cx = (out_w - tile_size[0]) / 2.0
+                        default_cy = (out_h - tile_size[1]) / 2.0
+                        self.tucked_floating_orig_pos[wid] = [default_cx, default_cy]
+                        log.info(f"Using default centered pos for floating window {wid}: [{default_cx}, {default_cy}]")
+
+                    log.info(f"Background window {f_id} focused; tucking floating window {wid} to x={tuck_x}")
+                    self.send_action({'MoveFloatingWindow': {'id': wid, 'x': {'SetFixed': tuck_x}, 'y': {'AdjustFixed': 0.0}}})
+                    self.tucked_floating_ids.add(wid)
             return
 
     def run(self):

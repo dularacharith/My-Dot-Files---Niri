@@ -11,6 +11,8 @@ Smart dynamic window layout manager for Niri.
   automatically restores to floating, and the minimized background window expands
   back to full screen / maximized.
 - Clicking a background tiled window demotes floating windows to tiling so they never obstruct.
+- Fullscreen media players (VLC, Haruna, MPV, etc.) enter true fullscreen without
+  being overridden or demoted, and return cleanly to floating 16:9 rectangle when fullscreen exits.
 """
 
 import os
@@ -56,6 +58,7 @@ class NiriAutoFloat:
         self.s_event = None
         self.event_reader = None
         self.running = True
+        self.cmd_lock = threading.Lock()
         
         # Window IDs that should float when focused
         self.auto_float_ids = set()
@@ -69,8 +72,12 @@ class NiriAutoFloat:
         self.suppress_demote_until_focus = None
         # Track tiled windows that were maximized: wid -> 'maximized' | 'true_fullscreen'
         self.was_maximized = {}
-        # Track floating windows that have been made centered square
+        # Track floating windows that have been made centered rectangle
         self.squared_floating_ids = set()
+        # Track windows currently in true fullscreen
+        self.fullscreen_ids = set()
+        # Track if window was floating before entering true fullscreen: wid -> bool
+        self.fullscreen_orig_floating = {}
 
     def connect(self):
         self.sock_path = get_niri_socket()
@@ -104,60 +111,64 @@ class NiriAutoFloat:
         self.event_reader = None
 
     def send_action(self, action_dict):
-        try:
-            if not self.s_cmd or not self.cmd_reader:
+        with self.cmd_lock:
+            try:
+                if not self.s_cmd or not self.cmd_reader:
+                    return None
+                if isinstance(action_dict, str):
+                    action_dict = {action_dict: {}}
+                req = json.dumps({'Action': action_dict}) + '\n'
+                self.s_cmd.sendall(req.encode())
+                res = self.cmd_reader.readline()
+                return json.loads(res) if res else None
+            except Exception as e:
+                log.warning(f"Error sending action {action_dict}: {e}")
                 return None
-            if isinstance(action_dict, str):
-                action_dict = {action_dict: {}}
-            req = json.dumps({'Action': action_dict}) + '\n'
-            self.s_cmd.sendall(req.encode())
-            res = self.cmd_reader.readline()
-            return json.loads(res) if res else None
-        except Exception as e:
-            log.warning(f"Error sending action {action_dict}: {e}")
-            return None
 
     def get_windows(self):
-        try:
-            if not self.s_cmd or not self.cmd_reader:
+        with self.cmd_lock:
+            try:
+                if not self.s_cmd or not self.cmd_reader:
+                    return None
+                self.s_cmd.sendall(b'"Windows"\n')
+                res = self.cmd_reader.readline()
+                if not res:
+                    return None
+                data = json.loads(res)
+                return data.get('Ok', {}).get('Windows', [])
+            except Exception as e:
+                log.warning(f"Error querying windows: {e}")
                 return None
-            self.s_cmd.sendall(b'"Windows"\n')
-            res = self.cmd_reader.readline()
-            if not res:
-                return None
-            data = json.loads(res)
-            return data.get('Ok', {}).get('Windows', [])
-        except Exception as e:
-            log.warning(f"Error querying windows: {e}")
-            return None
 
     def get_workspaces(self):
-        try:
-            if not self.s_cmd or not self.cmd_reader:
+        with self.cmd_lock:
+            try:
+                if not self.s_cmd or not self.cmd_reader:
+                    return []
+                self.s_cmd.sendall(b'"Workspaces"\n')
+                res = self.cmd_reader.readline()
+                if not res:
+                    return []
+                data = json.loads(res)
+                return data.get('Ok', {}).get('Workspaces', [])
+            except Exception as e:
+                log.warning(f"Error querying workspaces: {e}")
                 return []
-            self.s_cmd.sendall(b'"Workspaces"\n')
-            res = self.cmd_reader.readline()
-            if not res:
-                return []
-            data = json.loads(res)
-            return data.get('Ok', {}).get('Workspaces', [])
-        except Exception as e:
-            log.warning(f"Error querying workspaces: {e}")
-            return []
 
     def get_outputs(self):
-        try:
-            if not self.s_cmd or not self.cmd_reader:
+        with self.cmd_lock:
+            try:
+                if not self.s_cmd or not self.cmd_reader:
+                    return {}
+                self.s_cmd.sendall(b'"Outputs"\n')
+                res = self.cmd_reader.readline()
+                if not res:
+                    return {}
+                data = json.loads(res)
+                return data.get('Ok', {}).get('Outputs', {})
+            except Exception as e:
+                log.warning(f"Error querying outputs: {e}")
                 return {}
-            self.s_cmd.sendall(b'"Outputs"\n')
-            res = self.cmd_reader.readline()
-            if not res:
-                return {}
-            data = json.loads(res)
-            return data.get('Ok', {}).get('Outputs', {})
-        except Exception as e:
-            log.warning(f"Error querying outputs: {e}")
-            return {}
 
     def is_exempt(self, win):
         if not win:
@@ -181,7 +192,7 @@ class NiriAutoFloat:
         ))
 
     def check_fullscreen(self, win, workspaces, outputs):
-        if not win or win.get('is_floating'):
+        if not win:
             return False, None
         ws_id = win.get('workspace_id')
         ws = next((w for w in workspaces if w.get('id') == ws_id), None)
@@ -206,8 +217,8 @@ class NiriAutoFloat:
         if w_width >= (out_w - 5) and w_height >= (out_h - 5):
             return True, 'true_fullscreen'
         
-        # Maximized / full-width column takes >85% of screen width
-        if w_width >= 0.85 * out_w:
+        # Maximized / full-width column takes >85% of screen width (only if tiled)
+        if not win.get('is_floating') and w_width >= 0.85 * out_w:
             return True, 'maximized'
             
         return False, None
@@ -221,7 +232,7 @@ class NiriAutoFloat:
         ))
 
     def make_centered_rectangle(self, win, wid, workspaces, outputs):
-        if not win or self.is_exempt(win):
+        if not win or self.is_exempt(win) or wid in self.fullscreen_ids:
             return
 
         ws_id = win.get('workspace_id')
@@ -249,7 +260,8 @@ class NiriAutoFloat:
         # Secondary center after client attaches the resized buffer (~80ms)
         def delayed_center():
             try:
-                self.send_action({'CenterWindow': {'id': wid}})
+                if wid not in self.fullscreen_ids:
+                    self.send_action({'CenterWindow': {'id': wid}})
             except Exception:
                 pass
         threading.Timer(0.08, delayed_center).start()
@@ -269,6 +281,9 @@ class NiriAutoFloat:
             if active_ws and active_ws.get('active_window_id'):
                 focused = win_by_id.get(active_ws['active_window_id'])
 
+        # Snapshot of previous states from BEFORE this update began
+        prev_states = dict(self.prev_win_states)
+
         # Check suppression flag for temporary focus shifts during restoration
         if self.suppress_demote_until_focus is not None:
             if self.suppress_demote_until_focus not in win_by_id:
@@ -285,6 +300,8 @@ class NiriAutoFloat:
         self.auto_float_ids.intersection_update(current_ids)
         self.manually_tiled_ids.intersection_update(current_ids)
         self.squared_floating_ids.intersection_update(current_ids)
+        self.fullscreen_ids.intersection_update(current_ids)
+        self.fullscreen_orig_floating = {k: v for k, v in self.fullscreen_orig_floating.items() if k in current_ids}
         self.was_maximized = {wid: m for wid, m in self.was_maximized.items() if wid in current_ids}
 
         for ws_id in list(self.workspace_split_info.keys()):
@@ -300,6 +317,7 @@ class NiriAutoFloat:
                 and (w['id'] in self.auto_float_ids or self.is_default_floating(w) or w.get('is_floating'))
                 and w['id'] not in self.manually_tiled_ids
                 and not self.is_exempt(w)
+                and w['id'] not in self.fullscreen_ids
             ]
 
             # CASE A: Only 1 float window remains on this workspace
@@ -341,17 +359,48 @@ class NiriAutoFloat:
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 100.0}}})
                         self.send_action({'MaximizeColumn': {}})
 
-        # 2. Track floating windows, maximized state, and handle transitions
+        # 2. Track floating windows, maximized state, fullscreen state, and handle transitions
         for wid, w in win_by_id.items():
             cur_focused = (focused is not None and focused.get('id') == wid)
             cur_floating = w.get('is_floating', False)
             prev_focused, prev_floating = self.prev_win_states.get(wid, (False, False))
 
-            # Track maximized state when window is TILED
-            if not cur_floating and not self.is_exempt(w):
+            is_fs, fs_mode = self.check_fullscreen(w, workspaces, outputs)
+            is_true_fs = (is_fs and fs_mode == 'true_fullscreen')
+
+            # Fullscreen entry and exit detection
+            if is_true_fs:
+                if wid not in self.fullscreen_ids:
+                    log.info(f"Window {wid} ({w.get('app_id')}) entered true fullscreen")
+                    self.fullscreen_ids.add(wid)
+                    self.fullscreen_orig_floating[wid] = (
+                        prev_floating or cur_floating or self.is_default_floating(w) or wid in self.auto_float_ids
+                    )
+                    self.squared_floating_ids.discard(wid)
+            else:
+                if wid in self.fullscreen_ids:
+                    log.info(f"Window {wid} ({w.get('app_id')}) exited true fullscreen")
+                    self.fullscreen_ids.discard(wid)
+                    orig_floating = (
+                        self.fullscreen_orig_floating.pop(wid, False)
+                        or self.is_default_floating(w)
+                        or wid in self.auto_float_ids
+                    )
+                    if orig_floating:
+                        if not cur_floating:
+                            log.info(f"Restoring window {wid} ({w.get('app_id')}) to floating after exiting fullscreen")
+                            self.send_action({'MoveWindowToFloating': {'id': wid}})
+                            w['is_floating'] = True
+                            cur_floating = True
+                        self.make_centered_rectangle(w, wid, workspaces, outputs)
+                        self.squared_floating_ids.add(wid)
+                        self.prev_win_states[wid] = (cur_focused, True)
+                        prev_floating = True
+
+            # Track maximized state when window is TILED (and not in true fullscreen)
+            if not cur_floating and not is_true_fs and not self.is_exempt(w):
                 ws_id = w.get('workspace_id')
                 if ws_id not in self.workspace_split_info or self.workspace_split_info[ws_id].get('main_wid') != wid:
-                    is_fs, fs_mode = self.check_fullscreen(w, workspaces, outputs)
                     if is_fs:
                         self.was_maximized[wid] = fs_mode
                     else:
@@ -360,7 +409,7 @@ class NiriAutoFloat:
             # Detect transition: TILED -> FLOATING (or new floating window opened)
             is_new_floating = (wid not in self.prev_win_states and cur_floating)
             is_transition_to_float = (cur_floating and not prev_floating)
-            if (is_new_floating or is_transition_to_float) and not self.is_exempt(w):
+            if (is_new_floating or is_transition_to_float) and not is_true_fs and not self.is_exempt(w):
                 was_max = self.was_maximized.get(wid)
                 log.info(f"Window {wid} ({w.get('app_id')}) became floating (was_max={was_max})")
                 if wid not in self.squared_floating_ids:
@@ -368,7 +417,7 @@ class NiriAutoFloat:
                     self.squared_floating_ids.add(wid)
 
             # Detect transition: FLOATING -> TILED (e.g. user pressed Mod+Shift+T to un-float)
-            if prev_floating and not cur_floating:
+            if prev_floating and not cur_floating and not is_true_fs:
                 self.squared_floating_ids.discard(wid)
                 was_max = self.was_maximized.pop(wid, None)
                 if was_max == 'true_fullscreen':
@@ -392,11 +441,11 @@ class NiriAutoFloat:
                     self.auto_float_ids.add(wid)
                     self.manually_tiled_ids.discard(wid)
                     log.info(f"Tracking floating window {wid} ({w.get('app_id')})")
-            elif self.is_default_floating(w) and wid not in self.manually_tiled_ids:
+            elif self.is_default_floating(w) and wid not in self.manually_tiled_ids and not is_true_fs:
                 if wid not in self.auto_float_ids:
                     self.auto_float_ids.add(wid)
                     log.info(f"Tracking default-floating window {wid} ({w.get('app_id')})")
-            elif prev_floating and not cur_floating and cur_focused:
+            elif prev_floating and not cur_floating and cur_focused and not is_true_fs:
                 self.auto_float_ids.discard(wid)
                 self.manually_tiled_ids.add(wid)
                 log.info(f"Window {wid} manually tiled while focused; removed from auto-float")
@@ -414,6 +463,11 @@ class NiriAutoFloat:
         f_ws = focused.get('workspace_id')
         f_floating = focused.get('is_floating', False)
 
+        # If focused window is currently in true fullscreen, do not interfere!
+        if f_id in self.fullscreen_ids or self.check_fullscreen(focused, workspaces, outputs)[1] == 'true_fullscreen':
+            log.debug(f"Focused window {f_id} is in true fullscreen; leaving untouched")
+            return
+
         # Classify windows on active workspace
         ws_wins = [w for w in win_by_id.values() if w.get('workspace_id') == f_ws]
         main_wins = [
@@ -422,27 +476,33 @@ class NiriAutoFloat:
             and not self.is_default_floating(w)
             and not w.get('is_floating')
             and not self.is_exempt(w)
+            and w['id'] not in self.fullscreen_ids
         ]
         float_wins = [
             w for w in ws_wins
             if (w['id'] in self.auto_float_ids or self.is_default_floating(w) or w.get('is_floating'))
             and w['id'] not in self.manually_tiled_ids
             and not self.is_exempt(w)
+            and w['id'] not in self.fullscreen_ids
         ]
         num_floats = len(float_wins)
         is_float_target = any(w['id'] == f_id for w in float_wins)
 
         # 3. IF FOCUSED WINDOW IS A FLOAT-CAPABLE WINDOW:
         if is_float_target:
-            # Lift focused window to floating if it was tiled
-            if not f_floating:
+            # Lift focused window to floating ONLY IF it was not already floating
+            # (which prevents interrupting a window in the middle of transitioning into fullscreen)
+            prev_fc, prev_fl = prev_states.get(f_id, (False, False))
+            was_previously_floating = prev_fl
+
+            if not f_floating and not was_previously_floating and f_id not in self.fullscreen_ids:
                 log.info(f"Promoting focused window {f_id} ({focused.get('app_id')}) to floating!")
                 self.send_action({'MoveWindowToFloating': {'id': f_id}})
                 self.prev_win_states[f_id] = (True, True)
                 f_floating = True
                 self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
-            elif f_id not in self.squared_floating_ids:
+            elif f_floating and f_id not in self.squared_floating_ids:
                 self.make_centered_rectangle(focused, f_id, workspaces, outputs)
                 self.squared_floating_ids.add(f_id)
 
@@ -464,7 +524,7 @@ class NiriAutoFloat:
                         self.send_action({'SetColumnWidth': {'change': {'SetProportion': 50.0}}})
                         self.send_action({'FocusWindow': {'id': f_id}})
 
-                # Demote any other float window on this workspace to 50% tiling
+                # Demote any other float window on this workspace to 50% split tile
                 for other in float_wins:
                     other_id = other['id']
                     if other_id != f_id:

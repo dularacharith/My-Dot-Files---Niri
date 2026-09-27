@@ -1,32 +1,20 @@
 #!/usr/bin/env bash
 # fn-feedback: Fast visual OSD feedback for keyboard function keys in Niri / DMS
-# Displays pill-shaped top toast messages via DMS ToastService instead of notification popups.
+# Displays pill-shaped top toast messages with matching Material icons via DMS ToastService.
 
 action="${1:-}"
 sub="${2:-}"
 
 show_toast() {
     local msg="$1"
-    local level="${2:-info}"
+    local icon="${2:-info}"
+    local level="${3:-info}"
 
     # Immediately dismiss previous active toast to prevent queue delay on rapid keypresses
     dms ipc call toast hide >/dev/null 2>&1
-    if ! dms ipc call toast "$level" "$msg" >/dev/null 2>&1; then
+    if ! dms ipc call toast "${level}With" "$msg" "" "" "$icon" >/dev/null 2>&1; then
         notify-send -a "System" -t 1500 "$msg"
     fi
-}
-
-make_bar() {
-    local val="${1:-0}"
-    local total=10
-    local filled=$(( (val * total + 5) / 100 ))
-    [ "$filled" -gt "$total" ] && filled=$total
-    [ "$filled" -lt 0 ] && filled=0
-    local empty=$(( total - filled ))
-    local bar=""
-    for ((i=0; i<filled; i++)); do bar+="━"; done
-    for ((i=0; i<empty; i++)); do bar+="─"; done
-    echo "$bar"
 }
 
 case "$action" in
@@ -46,96 +34,53 @@ case "$action" in
         if [ "$target_mode" = "off" ]; then
             printf "input {\n    touchpad {\n        off\n    }\n}\n" > "$TOUCHPAD_CONF"
             niri msg action load-config-file >/dev/null 2>&1
-            show_toast "Touchpad: Off"
+            show_toast "Touchpad: Off" "touchpad_mouse_off"
         else
             printf "input {\n    touchpad {\n        tap\n        natural-scroll\n        accel-speed 0.0\n        scroll-factor 0.5\n    }\n}\n" > "$TOUCHPAD_CONF"
             niri msg action load-config-file >/dev/null 2>&1
-            show_toast "Touchpad: On"
+            show_toast "Touchpad: On" "touchpad_mouse"
         fi
         ;;
 
     volume)
+        # Volume is handled natively by DMS OSD
         case "$sub" in
             mute|toggle-mute)
-                dms ipc call audio mute >/dev/null 2>&1
-                sink_info=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
-                if [[ "$sink_info" =~ \[MUTED\] ]]; then
-                    show_toast "Volume: Muted"
-                else
-                    raw_vol=$(echo "$sink_info" | awk '{print $2}')
-                    vol=$(awk -v v="$raw_vol" 'BEGIN { printf "%.0f", v * 100 }')
-                    bar=$(make_bar "$vol")
-                    show_toast "Volume: ${vol}%  $bar"
-                fi
+                exec dms ipc call audio mute
                 ;;
             up|inc|increment)
-                dms ipc call audio increment 3 >/dev/null 2>&1
-                sink_info=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
-                raw_vol=$(echo "$sink_info" | awk '{print $2}')
-                vol=$(awk -v v="$raw_vol" 'BEGIN { printf "%.0f", v * 100 }')
-                [ "$vol" -gt 100 ] && vol=100
-                bar=$(make_bar "$vol")
-                show_toast "Volume: ${vol}%  $bar"
+                exec dms ipc call audio increment 3
                 ;;
             down|dec|decrement)
-                dms ipc call audio decrement 3 >/dev/null 2>&1
-                sink_info=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
-                raw_vol=$(echo "$sink_info" | awk '{print $2}')
-                vol=$(awk -v v="$raw_vol" 'BEGIN { printf "%.0f", v * 100 }')
-                [ "$vol" -lt 0 ] && vol=0
-                if [ "$vol" -eq 0 ]; then
-                    show_toast "Volume: Muted"
-                else
-                    bar=$(make_bar "$vol")
-                    show_toast "Volume: ${vol}%  $bar"
-                fi
+                exec dms ipc call audio decrement 3
                 ;;
         esac
         ;;
 
     mic)
-        dms ipc call audio micmute >/dev/null 2>&1
-        source_info=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)
-        if [[ "$source_info" =~ \[MUTED\] ]]; then
-            show_toast "Microphone: Muted"
-        else
-            show_toast "Microphone: On"
-        fi
+        # Mic is handled natively by DMS OSD
+        exec dms ipc call audio micmute
         ;;
 
     brightness)
-        # Call existing brightness-step script for adaptive stepping
-        brightness-step "$sub" >/dev/null 2>&1
-        
-        # Query current brightness
-        b_status=$(dms ipc call brightness status 2>/dev/null)
-        if [[ "$b_status" =~ ([0-9]+)% ]]; then
-            cur="${BASH_REMATCH[1]}"
-        elif [ -r /sys/class/backlight/intel_backlight/brightness ] && [ -r /sys/class/backlight/intel_backlight/max_brightness ]; then
-            raw=$(< /sys/class/backlight/intel_backlight/brightness)
-            max=$(< /sys/class/backlight/intel_backlight/max_brightness)
-            cur=$(( (raw * 100 + max / 2) / max ))
-        else
-            cur=50
-        fi
-        bar=$(make_bar "$cur")
-        show_toast "Brightness: ${cur}%  $bar"
+        # Brightness is handled natively by DMS OSD with adaptive stepping
+        exec brightness-step "$sub"
         ;;
 
     airplane)
         wifi_status=$(nmcli radio wifi 2>/dev/null)
         if [ "$wifi_status" = "enabled" ]; then
             nmcli radio wifi off >/dev/null 2>&1
-            show_toast "Airplane Mode: Enabled (Wi-Fi Off)"
+            show_toast "Airplane Mode: Enabled (Wi-Fi Off)" "airplanemode_active"
         else
             nmcli radio wifi on >/dev/null 2>&1
-            show_toast "Wi-Fi: Enabled"
+            show_toast "Wi-Fi: Enabled" "wifi"
         fi
         ;;
 
     display)
         dms ipc call outputs cycleProfile >/dev/null 2>&1
-        show_toast "Display Profile Switched"
+        show_toast "Display Profile Switched" "desktop_windows"
         ;;
 
     media)
@@ -146,26 +91,26 @@ case "$action" in
                 m_status=$(playerctl status 2>/dev/null)
                 m_title=$(playerctl metadata --format "{{ artist }} - {{ title }}" 2>/dev/null)
                 if [ "$m_status" = "Playing" ]; then
-                    show_toast "Media Playing: ${m_title:-Playing}"
+                    show_toast "Media Playing: ${m_title:-Playing}" "play_arrow"
                 else
-                    show_toast "Media: Paused"
+                    show_toast "Media: Paused" "pause"
                 fi
                 ;;
             next)
                 dms ipc call mpris next >/dev/null 2>&1
                 sleep 0.05
                 m_title=$(playerctl metadata --format "{{ artist }} - {{ title }}" 2>/dev/null)
-                show_toast "Next Track: ${m_title:-Next}"
+                show_toast "Next Track: ${m_title:-Next}" "skip_next"
                 ;;
             prev)
                 dms ipc call mpris previous >/dev/null 2>&1
                 sleep 0.05
                 m_title=$(playerctl metadata --format "{{ artist }} - {{ title }}" 2>/dev/null)
-                show_toast "Previous Track: ${m_title:-Previous}"
+                show_toast "Previous Track: ${m_title:-Previous}" "skip_previous"
                 ;;
             stop)
                 playerctl stop 2>/dev/null || dms ipc call mpris stop >/dev/null 2>&1
-                show_toast "Media: Stopped"
+                show_toast "Media: Stopped" "stop"
                 ;;
         esac
         ;;

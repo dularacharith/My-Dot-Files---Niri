@@ -108,10 +108,10 @@ class NiriAutoFloat:
         last_caps = read_led('/sys/class/leds/*::capslock/brightness')
         last_num = read_led('/sys/class/leds/*::numlock/brightness')
 
-        def show_toast(msg, level="info"):
+        def show_toast(msg, icon="info", level="info"):
             try:
                 subprocess.run(['dms', 'ipc', 'call', 'toast', 'hide'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                res = subprocess.run(['dms', 'ipc', 'call', 'toast', level, msg], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                res = subprocess.run(['dms', 'ipc', 'call', 'toast', f'{level}With', msg, '', '', icon], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if res.returncode != 0:
                     subprocess.run(['notify-send', '-a', 'System', '-t', '1500', msg], check=False)
             except Exception:
@@ -123,13 +123,14 @@ class NiriAutoFloat:
             if cur_caps is not None and cur_caps != last_caps:
                 last_caps = cur_caps
                 body = "ON" if cur_caps else "OFF"
-                show_toast(f"Caps Lock: {body}")
+                icon = "shift_lock" if cur_caps else "shift_lock_off"
+                show_toast(f"Caps Lock: {body}", icon)
 
             cur_num = read_led('/sys/class/leds/*::numlock/brightness')
             if cur_num is not None and cur_num != last_num:
                 last_num = cur_num
                 body = "ON" if cur_num else "OFF"
-                show_toast(f"Num Lock: {body}")
+                show_toast(f"Num Lock: {body}", "numbers")
 
     def connect(self):
         self.sock_path = get_niri_socket()

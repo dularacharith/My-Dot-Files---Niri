@@ -18,16 +18,16 @@ binds {
     XF86TouchpadOff allow-when-locked=true { spawn "fn-feedback" "touchpad" "off"; }
     XF86TouchpadOn allow-when-locked=true { spawn "fn-feedback" "touchpad" "on"; }
     Mod+F8 { spawn "fn-feedback" "touchpad" "toggle"; }
-    XF86AudioLowerVolume allow-when-locked=true { spawn "fn-feedback" "volume" "down"; }
-    XF86AudioMicMute allow-when-locked=true { spawn "fn-feedback" "mic" "mute"; }
-    XF86AudioMute allow-when-locked=true { spawn "fn-feedback" "volume" "mute"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "decrement" "3"; }
+    XF86AudioMicMute allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "micmute"; }
+    XF86AudioMute allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "mute"; }
     XF86AudioNext allow-when-locked=true { spawn "fn-feedback" "media" "next"; }
     XF86AudioPause allow-when-locked=true { spawn "fn-feedback" "media" "play-pause"; }
     XF86AudioPlay allow-when-locked=true { spawn "fn-feedback" "media" "play-pause"; }
     XF86AudioPrev allow-when-locked=true { spawn "fn-feedback" "media" "prev"; }
-    XF86AudioRaiseVolume allow-when-locked=true { spawn "fn-feedback" "volume" "up"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "fn-feedback" "brightness" "down"; }
-    XF86MonBrightnessUp allow-when-locked=true { spawn "fn-feedback" "brightness" "up"; }
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "increment" "3"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightness-step" "down"; }
+    XF86MonBrightnessUp allow-when-locked=true { spawn "brightness-step" "up"; }
     XF86WLAN allow-when-locked=true { spawn "fn-feedback" "airplane" "toggle"; }
     XF86RFKill allow-when-locked=true { spawn "fn-feedback" "airplane" "toggle"; }
     XF86Display allow-when-locked=true { spawn "fn-feedback" "display"; }

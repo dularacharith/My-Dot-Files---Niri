@@ -5,16 +5,6 @@ binds {
     XF86TouchpadOn allow-when-locked=true { spawn "fn-feedback" "touchpad" "on"; }
     Mod+F8 { spawn "fn-feedback" "touchpad" "toggle"; }
 
-    // Volume & Mic controls with visual feedback
-    XF86AudioMute allow-when-locked=true { spawn "fn-feedback" "volume" "mute"; }
-    XF86AudioRaiseVolume allow-when-locked=true { spawn "fn-feedback" "volume" "up"; }
-    XF86AudioLowerVolume allow-when-locked=true { spawn "fn-feedback" "volume" "down"; }
-    XF86AudioMicMute allow-when-locked=true { spawn "fn-feedback" "mic" "mute"; }
-
-    // Brightness controls with visual feedback
-    XF86MonBrightnessDown allow-when-locked=true { spawn "fn-feedback" "brightness" "down"; }
-    XF86MonBrightnessUp allow-when-locked=true { spawn "fn-feedback" "brightness" "up"; }
-
     // Airplane mode / Wi-Fi toggle
     XF86WLAN allow-when-locked=true { spawn "fn-feedback" "airplane" "toggle"; }
     XF86RFKill allow-when-locked=true { spawn "fn-feedback" "airplane" "toggle"; }

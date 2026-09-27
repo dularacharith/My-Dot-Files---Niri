@@ -343,11 +343,9 @@ setup_systemd() {
 
     if command -v systemctl &>/dev/null; then
         systemctl --user daemon-reload 2>/dev/null || true
-        systemctl --user enable niri-floating-stash.service 2>/dev/null || true
         
         # If running inside graphical session, restart or start service
         if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-            systemctl --user restart niri-floating-stash.service 2>/dev/null || true
             systemctl --user restart dms.service 2>/dev/null || true
         fi
         log_success "Systemd user services enabled."
@@ -376,7 +374,6 @@ main() {
     echo -e "${BOLD}What's configured:${NC}"
     echo "  - Niri with custom cubic-bezier shaders & smooth window-resize"
     echo "  - Dank Material Shell (DMS) on Layer::Top with auto-sync"
-    echo "  - Background Daemon: niri-floating-stash (smooth media expand & stash)"
     echo "  - Windows Snipping Tool (Mod+Shift+S)"
     echo "  - Wallpaper Controller: wallpaper-ctl (next, prev, random)"
     echo "  - Cisco Packet Tracer canvas fix shim (embedded note editing)"

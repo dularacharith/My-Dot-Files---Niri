@@ -48,7 +48,7 @@ case "$action" in
             niri msg action load-config-file >/dev/null 2>&1
             show_toast "Touchpad: Off"
         else
-            printf "input {\n    touchpad {\n    }\n}\n" > "$TOUCHPAD_CONF"
+            printf "input {\n    touchpad {\n        tap\n        natural-scroll\n        accel-speed 0.0\n        scroll-factor 0.5\n    }\n}\n" > "$TOUCHPAD_CONF"
             niri msg action load-config-file >/dev/null 2>&1
             show_toast "Touchpad: On"
         fi

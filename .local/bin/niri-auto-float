@@ -84,6 +84,57 @@ class NiriAutoFloat:
         self.fullscreen_ids = set()
         # Track if window was floating before entering true fullscreen: wid -> bool
         self.fullscreen_orig_floating = {}
+        self._start_led_monitor()
+
+    def _start_led_monitor(self):
+        t = threading.Thread(target=self._led_monitor_loop, daemon=True)
+        t.start()
+
+    def _led_monitor_loop(self):
+        import glob
+        import subprocess
+
+        def read_led(pattern):
+            for path in glob.glob(pattern):
+                try:
+                    with open(path, 'r') as f:
+                        val = f.read().strip()
+                        if val in ('1', '0'):
+                            return val == '1'
+                except Exception:
+                    pass
+            return None
+
+        last_caps = read_led('/sys/class/leds/*::capslock/brightness')
+        last_num = read_led('/sys/class/leds/*::numlock/brightness')
+
+        while self.running:
+            time.sleep(0.08)
+            cur_caps = read_led('/sys/class/leds/*::capslock/brightness')
+            if cur_caps is not None and cur_caps != last_caps:
+                last_caps = cur_caps
+                body = "ON" if cur_caps else "OFF"
+                try:
+                    subprocess.run([
+                        'notify-send', '-a', 'System', '-i', 'input-keyboard-symbolic',
+                        '-h', 'string:x-canonical-private-synchronous:osd-capslock',
+                        '-t', '1500', 'Caps Lock', body
+                    ], check=False)
+                except Exception:
+                    pass
+
+            cur_num = read_led('/sys/class/leds/*::numlock/brightness')
+            if cur_num is not None and cur_num != last_num:
+                last_num = cur_num
+                body = "ON" if cur_num else "OFF"
+                try:
+                    subprocess.run([
+                        'notify-send', '-a', 'System', '-i', 'input-keyboard-symbolic',
+                        '-h', 'string:x-canonical-private-synchronous:osd-numlock',
+                        '-t', '1500', 'Num Lock', body
+                    ], check=False)
+                except Exception:
+                    pass
 
     def connect(self):
         self.sock_path = get_niri_socket()

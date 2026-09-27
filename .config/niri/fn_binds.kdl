@@ -1,0 +1,31 @@
+binds {
+    // Touchpad hardware keys & toggle shortcut
+    XF86TouchpadToggle allow-when-locked=true { spawn "fn-feedback" "touchpad" "toggle"; }
+    XF86TouchpadOff allow-when-locked=true { spawn "fn-feedback" "touchpad" "off"; }
+    XF86TouchpadOn allow-when-locked=true { spawn "fn-feedback" "touchpad" "on"; }
+    Mod+F8 { spawn "fn-feedback" "touchpad" "toggle"; }
+
+    // Volume & Mic controls with visual feedback
+    XF86AudioMute allow-when-locked=true { spawn "fn-feedback" "volume" "mute"; }
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "fn-feedback" "volume" "up"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "fn-feedback" "volume" "down"; }
+    XF86AudioMicMute allow-when-locked=true { spawn "fn-feedback" "mic" "mute"; }
+
+    // Brightness controls with visual feedback
+    XF86MonBrightnessDown allow-when-locked=true { spawn "fn-feedback" "brightness" "down"; }
+    XF86MonBrightnessUp allow-when-locked=true { spawn "fn-feedback" "brightness" "up"; }
+
+    // Airplane mode / Wi-Fi toggle
+    XF86WLAN allow-when-locked=true { spawn "fn-feedback" "airplane" "toggle"; }
+    XF86RFKill allow-when-locked=true { spawn "fn-feedback" "airplane" "toggle"; }
+
+    // Display switch
+    XF86Display allow-when-locked=true { spawn "fn-feedback" "display"; }
+
+    // Media playback controls
+    XF86AudioPlay allow-when-locked=true { spawn "fn-feedback" "media" "play-pause"; }
+    XF86AudioPause allow-when-locked=true { spawn "fn-feedback" "media" "play-pause"; }
+    XF86AudioNext allow-when-locked=true { spawn "fn-feedback" "media" "next"; }
+    XF86AudioPrev allow-when-locked=true { spawn "fn-feedback" "media" "prev"; }
+    XF86AudioStop allow-when-locked=true { spawn "fn-feedback" "media" "stop"; }
+}

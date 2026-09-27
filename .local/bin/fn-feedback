@@ -10,8 +10,6 @@ show_toast() {
     local icon="${2:-info}"
     local level="${3:-info}"
 
-    # Immediately dismiss previous active toast to prevent queue delay on rapid keypresses
-    dms ipc call toast hide >/dev/null 2>&1
     if ! dms ipc call toast "${level}With" "$msg" "" "" "$icon" >/dev/null 2>&1; then
         notify-send -a "System" -t 1500 "$msg"
     fi

@@ -453,6 +453,12 @@ PanelWindow {
             }
         }
 
+        Behavior on color {
+            ColorAnimation {
+                duration: Theme.shortDuration
+            }
+        }
+
         Behavior on height {
             enabled: false
         }

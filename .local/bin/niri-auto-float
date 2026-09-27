@@ -110,7 +110,6 @@ class NiriAutoFloat:
 
         def show_toast(msg, icon="info", level="info"):
             try:
-                subprocess.run(['dms', 'ipc', 'call', 'toast', 'hide'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 res = subprocess.run(['dms', 'ipc', 'call', 'toast', f'{level}With', msg, '', '', icon], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if res.returncode != 0:
                     subprocess.run(['notify-send', '-a', 'System', '-t', '1500', msg], check=False)

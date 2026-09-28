@@ -4153,7 +4153,7 @@ qt-privacy-ask=0
 #gain=1.000000
 
 # Audio output volume step (float)
-#volume-step=12.800000
+volume-step=2.560000
 
 # Remember the audio volume (boolean)
 #volume-save=1

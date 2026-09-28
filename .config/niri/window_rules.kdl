@@ -142,3 +142,38 @@ window-rule {
   default-column-width { fixed 840; }
   default-window-height { fixed 700; }
 }
+
+// Media & Creative apps: fine-tuned touchpad gesture dampening for volume, zoom & timeline
+window-rule {
+  match app-id="vlc"
+  match app-id="org.videolan.vlc"
+  match app-id=r#"[Vv]lc"#
+  scroll-factor 0.25
+}
+
+window-rule {
+  match app-id="kdenlive"
+  match app-id="org.kde.kdenlive"
+  match app-id=r#"[Kk]denlive"#
+  scroll-factor 0.25
+}
+
+window-rule {
+  match app-id="haruna"
+  match app-id="org.kde.haruna"
+  scroll-factor 0.25
+}
+
+window-rule {
+  match app-id="gimp"
+  match app-id="gimp-2.99"
+  match app-id="gimp-3.0"
+  scroll-factor 0.3
+}
+
+window-rule {
+  match app-id="audacity"
+  match app-id="org.audacityteam.Audacity"
+  scroll-factor 0.25
+}
+

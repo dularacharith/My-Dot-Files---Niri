@@ -53,6 +53,7 @@ input {
     touchpad {
         tap
         natural-scroll
+        scroll-factor 0.4
     }
 
     // focus-follows-mouse max-scroll-amount="0%"

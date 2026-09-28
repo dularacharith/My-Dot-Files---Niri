@@ -3,6 +3,6 @@ input {
         tap
         natural-scroll
         accel-speed 0.0
-        scroll-factor 0.5
+        scroll-factor 0.4
     }
 }

@@ -176,6 +176,7 @@ class MonitorCanvas(Gtk.DrawingArea):
 
         self.outputs = {}
         self.selected_output = None
+        self.current_settings = {}
         self.boxes = {}  # output_name -> (x, y, w, h)
 
         self.set_draw_func(self.draw)
@@ -184,9 +185,10 @@ class MonitorCanvas(Gtk.DrawingArea):
         click.connect("pressed", self.on_click)
         self.add_controller(click)
 
-    def update_outputs(self, outputs, selected_output):
+    def update_outputs(self, outputs, selected_output, current_settings=None):
         self.outputs = outputs
         self.selected_output = selected_output
+        self.current_settings = current_settings or {}
         self.queue_draw()
 
     def on_click(self, gesture, n_press, x, y):
@@ -216,27 +218,71 @@ class MonitorCanvas(Gtk.DrawingArea):
             cr.show_text("No displays detected")
             return
 
-        # Calculate bounding box of all displays in logical coordinates
+        # Separate active and disabled monitors
         active_monitors = []
-        for name, data in self.outputs.items():
-            log = data.get("logical") or {}
-            x = log.get("x", 0)
-            y = log.get("y", 0)
-            lw = log.get("width", 1920)
-            lh = log.get("height", 1080)
-            scale = log.get("scale", 1.0)
-            active_monitors.append({
-                "name": name,
-                "x": x, "y": y,
-                "w": lw, "h": lh,
-                "scale": scale,
-                "data": data
-            })
+        disabled_monitors = []
 
-        min_x = min(m["x"] for m in active_monitors)
-        max_x = max(m["x"] + m["w"] for m in active_monitors)
-        min_y = min(m["y"] for m in active_monitors)
-        max_y = max(m["y"] + m["h"] for m in active_monitors)
+        for name, data in self.outputs.items():
+            log = data.get("logical")
+            cfg = self.current_settings.get(name, {})
+            is_off = (log is None) or cfg.get("off", False)
+
+            modes = data.get("modes", [])
+            w = 1920
+            h = 1080
+            if modes:
+                w = modes[0].get("width", 1920)
+                h = modes[0].get("height", 1080)
+
+            scale = cfg.get("scale", 1.0)
+            if log:
+                w = log.get("width", w)
+                h = log.get("height", h)
+                scale = log.get("scale", scale)
+
+            m_info = {
+                "name": name,
+                "x": log.get("x", 0) if log else 0,
+                "y": log.get("y", 0) if log else 0,
+                "w": w,
+                "h": h,
+                "scale": scale,
+                "off": is_off,
+                "data": data
+            }
+
+            if is_off:
+                disabled_monitors.append(m_info)
+            else:
+                active_monitors.append(m_info)
+
+        if not active_monitors and not disabled_monitors:
+            return
+
+        # Position disabled monitors neatly to the right of active ones
+        if active_monitors:
+            min_x = min(m["x"] for m in active_monitors)
+            max_x = max(m["x"] + m["w"] for m in active_monitors)
+            min_y = min(m["y"] for m in active_monitors)
+            max_y = max(m["y"] + m["h"] for m in active_monitors)
+            curr_off_x = max_x + 120
+            for dm in disabled_monitors:
+                dm["x"] = curr_off_x
+                dm["y"] = min_y
+                curr_off_x += dm["w"] + 120
+                max_x = dm["x"] + dm["w"]
+            all_monitors = active_monitors + disabled_monitors
+        else:
+            min_x = 0
+            curr_x = 0
+            for dm in disabled_monitors:
+                dm["x"] = curr_x
+                dm["y"] = 0
+                curr_x += dm["w"] + 120
+            all_monitors = disabled_monitors
+            max_x = curr_x
+            min_y = 0
+            max_y = 1080
 
         total_w = max(1, max_x - min_x)
         total_h = max(1, max_y - min_y)
@@ -252,10 +298,11 @@ class MonitorCanvas(Gtk.DrawingArea):
         offset_y = (height - (total_h * scale_fit)) / 2
 
         # Draw each monitor
-        for m in active_monitors:
+        for m in all_monitors:
             name = m["name"]
             is_selected = (name == self.selected_output)
-            is_primary = (name == "eDP-1" or m["x"] == 0)
+            is_off = m.get("off", False)
+            is_primary = (name == "eDP-1" or (not is_off and m["x"] == 0))
 
             dx = offset_x + (m["x"] - min_x) * scale_fit
             dy = offset_y + (m["y"] - min_y) * scale_fit
@@ -267,39 +314,55 @@ class MonitorCanvas(Gtk.DrawingArea):
             # Monitor body
             cr.save()
             self._rounded_rectangle(cr, dx, dy, dw, dh, 8)
-            if is_selected:
+            if is_off:
+                cr.set_source_rgba(0.0, 0.0, 0.0, 0.04)
+            elif is_selected:
                 cr.set_source_rgba(0.40, 0.31, 0.64, 0.22)
             else:
                 cr.set_source_rgba(0.0, 0.0, 0.0, 0.12)
             cr.fill_preserve()
 
             # Border
-            if is_selected:
+            if is_off:
+                cr.set_dash([4.0, 4.0])
+                cr.set_source_rgba(0.5, 0.5, 0.5, 0.45)
+                cr.set_line_width(1.2)
+            elif is_selected:
                 cr.set_source_rgba(0.40, 0.31, 0.64, 0.95)
                 cr.set_line_width(2.2)
             else:
                 cr.set_source_rgba(0.5, 0.5, 0.5, 0.35)
                 cr.set_line_width(1.0)
             cr.stroke()
+            cr.set_dash([])
             cr.restore()
 
             # Text inside monitor
             cr.save()
             is_dark = Adw.StyleManager.get_default().get_dark()
-            cr.set_source_rgba(0.12, 0.12, 0.12, 0.95) if not is_dark else cr.set_source_rgba(0.95, 0.95, 0.95, 0.95)
+            if is_off:
+                cr.set_source_rgba(0.5, 0.5, 0.5, 0.7)
+            elif not is_dark:
+                cr.set_source_rgba(0.12, 0.12, 0.12, 0.95)
+            else:
+                cr.set_source_rgba(0.95, 0.95, 0.95, 0.95)
             cr.select_font_face("Inter, Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
             cr.set_font_size(max(10, min(13, int(dh * 0.24))))
 
-            text_title = f"{name}" + (" ★" if is_primary else "")
+            title_suffix = " (Off)" if is_off else (" ★" if is_primary else "")
+            text_title = f"{name}{title_suffix}"
             ext = cr.text_extents(text_title)
             cr.move_to(dx + (dw - ext.width) / 2, dy + (dh / 2) - 3)
             cr.show_text(text_title)
 
-            # Subtitle (Resolution & Scale)
+            # Subtitle (Resolution & Scale or Disabled)
             cr.select_font_face("Inter, Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
             cr.set_font_size(max(9, min(11, int(dh * 0.18))))
             cr.set_source_rgba(0.5, 0.5, 0.5, 0.85)
-            text_sub = f"{int(m['w'] * m['scale'])}×{int(m['h'] * m['scale'])} • {int(m['scale'] * 100)}%"
+            if is_off:
+                text_sub = "Disabled"
+            else:
+                text_sub = f"{int(m['w'] * m['scale'])}×{int(m['h'] * m['scale'])} • {int(m['scale'] * 100)}%"
             ext_sub = cr.text_extents(text_sub)
             cr.move_to(dx + (dw - ext_sub.width) / 2, dy + (dh / 2) + ext_sub.height + 4)
             cr.show_text(text_sub)
@@ -551,25 +614,27 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
         # Populate current_settings from raw_outputs if empty
         for name, data in self.raw_outputs.items():
             if name not in self.current_settings:
-                log = data.get("logical") or {}
+                log = data.get("logical")
                 modes = data.get("modes", [])
-                cur_mode_idx = data.get("current_mode", 0)
+                cur_mode_idx = data.get("current_mode")
+                if cur_mode_idx is None or not (0 <= cur_mode_idx < len(modes)):
+                    cur_mode_idx = 0
                 cur_mode_str = ""
-                if modes and 0 <= cur_mode_idx < len(modes):
+                if modes:
                     m = modes[cur_mode_idx]
-                    cur_mode_str = f"{m['width']}x{m['height']}@{round(m['refresh_rate'] / 1000, 3)}"
+                    cur_mode_str = f"{m['width']}x{m['height']}@{m['refresh_rate'] / 1000.0:.3f}"
 
                 self.current_settings[name] = {
                     "mode": cur_mode_str,
-                    "scale": log.get("scale", 1.0),
-                    "pos_x": log.get("x", 0),
-                    "pos_y": log.get("y", 0),
-                    "transform": log.get("transform", "Normal").lower(),
-                    "off": (data.get("logical") is None)
+                    "scale": log.get("scale", 1.0) if log else 1.0,
+                    "pos_x": log.get("x", 0) if log else 0,
+                    "pos_y": log.get("y", 0) if log else 0,
+                    "transform": (log.get("transform", "Normal") if log else "Normal").lower(),
+                    "off": (log is None)
                 }
 
         # Update visual canvas
-        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name)
+        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name, self.current_settings)
 
         # Update multi-monitor arrangement card visibility / sensitivity
         self.arrangement_group.set_sensitive(count >= 2)
@@ -614,23 +679,55 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
         modes = out_data.get("modes", [])
         self.mode_strings = []
         labels = []
-        selected_idx = 0
+
+        cur_mode_idx = out_data.get("current_mode")
+        if cur_mode_idx is None or not (0 <= cur_mode_idx < len(modes)):
+            cur_mode_idx = 0
+
+        target_mode = cfg.get("mode")
+        selected_idx = None
 
         for idx, m in enumerate(modes):
             w = m.get("width")
             h = m.get("height")
-            hz = round(m.get("refresh_rate", 60000) / 1000, 2)
-            pref = " (Preferred)" if m.get("is_preferred") else ""
-            mode_str = f"{w}x{h}@{round(m.get('refresh_rate') / 1000, 3)}"
+            refresh_mhz = m.get("refresh_rate", 60000)
+            hz = refresh_mhz / 1000.0
+            mode_str = f"{w}x{h}@{hz:.3f}"
             self.mode_strings.append(mode_str)
-            labels.append(f"{w} × {h} @ {hz} Hz{pref}")
 
-            if cfg.get("mode") and (cfg["mode"] == mode_str or cfg["mode"].startswith(f"{w}x{h}")):
-                selected_idx = idx
+            # Formatted friendly label
+            if abs(hz - round(hz)) < 0.06:
+                hz_text = f"{round(hz)} Hz"
+            else:
+                hz_text = f"{hz:.2f} Hz"
+            pref = " (Preferred)" if m.get("is_preferred") else ""
+            labels.append(f"{w} × {h} @ {hz_text}{pref}")
 
+            # Check match against target_mode (exact or tolerance)
+            if target_mode and selected_idx is None:
+                if target_mode == mode_str:
+                    selected_idx = idx
+                elif "@" in target_mode:
+                    try:
+                        t_res, t_hz = target_mode.split("@")
+                        if f"{w}x{h}" == t_res and abs(hz - float(t_hz)) < 0.05:
+                            selected_idx = idx
+                    except Exception:
+                        pass
+                elif target_mode == f"{w}x{h}":
+                    if m.get("is_preferred") or idx == cur_mode_idx:
+                        selected_idx = idx
+
+        if selected_idx is None:
+            selected_idx = cur_mode_idx
+
+        # Update combo model safely without firing spurious change events
+        prev_suppress = self.suppress_signals
+        self.suppress_signals = True
         self.res_model.splice(0, self.res_model.get_n_items(), labels)
-        if labels:
+        if labels and 0 <= selected_idx < len(labels):
             self.res_row.set_selected(selected_idx)
+        self.suppress_signals = prev_suppress
 
         # Scale
         current_scale = cfg.get("scale", 1.0)
@@ -645,9 +742,28 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
         if self.suppress_signals or not self.selected_output_name:
             return
         is_on = self.power_row.get_active()
-        self.current_settings[self.selected_output_name]["off"] = not is_on
-        self.backend.apply_output_live(self.selected_output_name, off=(not is_on))
-        self.canvas.queue_draw()
+        name = self.selected_output_name
+        self.current_settings[name]["off"] = not is_on
+
+        if is_on:
+            cfg = self.current_settings[name]
+            self.backend.apply_output_live(
+                name,
+                mode=cfg.get("mode"),
+                scale=cfg.get("scale"),
+                pos_x=cfg.get("pos_x", 0),
+                pos_y=cfg.get("pos_y", 0),
+                transform=cfg.get("transform", "normal"),
+                off=False
+            )
+            self.toast_overlay.add_toast(Adw.Toast.new(f"{name} turned on"))
+        else:
+            self.backend.apply_output_live(name, off=True)
+            self.toast_overlay.add_toast(Adw.Toast.new(f"{name} turned off"))
+
+        self.save_all_settings(silent=True)
+        self.raw_outputs = self.backend.get_outputs()
+        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name, self.current_settings)
 
     def on_resolution_changed(self, combo, gparam):
         if self.suppress_signals or not self.selected_output_name:
@@ -657,7 +773,8 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
             mode_val = self.mode_strings[idx]
             self.current_settings[self.selected_output_name]["mode"] = mode_val
             self.backend.apply_output_live(self.selected_output_name, mode=mode_val)
-            self.toast_overlay.add_toast(Adw.Toast.new(f"Resolution set: {mode_val}"))
+            lbl = self.res_model.get_string(idx)
+            self.toast_overlay.add_toast(Adw.Toast.new(f"Display mode set: {lbl}"))
             self.canvas.queue_draw()
 
     def on_scale_preset_clicked(self, scale_val):
@@ -704,7 +821,8 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
             self.backend.stop_mirroring()
             self.banner.set_revealed(False)
             self._set_pos(primary, 0, 0, off=False)
-            self._set_pos(sec, p_lw, 0, off=False)
+            for s in secondaries:
+                self._set_pos(s, p_lw, 0, off=False)
             self.toast_overlay.add_toast(Adw.Toast.new("Arranged: Secondary extended to the right"))
             self.backend.notify_dms_toast("Displays Extended Right", "pan-end-symbolic")
 
@@ -712,19 +830,29 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
             self.backend.stop_mirroring()
             self.banner.set_revealed(False)
             self._set_pos(primary, 0, 0, off=False)
-            self._set_pos(sec, -s_lw, 0, off=False)
+            for s in secondaries:
+                self._set_pos(s, -s_lw, 0, off=False)
             self.toast_overlay.add_toast(Adw.Toast.new("Arranged: Secondary extended to the left"))
             self.backend.notify_dms_toast("Displays Extended Left", "pan-start-symbolic")
 
         elif preset_id == "mirror":
-            ok = self.backend.start_mirroring(sec, primary)
-            if ok:
-                self.banner.set_title(f"Mirroring Active: {primary} → {sec}")
-                self.banner.set_revealed(True)
-                self.toast_overlay.add_toast(Adw.Toast.new(f"Mirroring {primary} to {sec}"))
-                self.backend.notify_dms_toast(f"Mirroring to {sec}", "view-mirror-symbolic")
-            else:
-                self.toast_overlay.add_toast(Adw.Toast.new("Failed to start display mirroring"))
+            # 1. Stop any currently active mirror
+            self.backend.stop_mirroring()
+            self.banner.set_revealed(False)
+
+            # 2. Power on and position secondary display so Niri activates it
+            self._set_pos(primary, 0, 0, off=False)
+            for s in secondaries:
+                self._set_pos(s, p_lw, 0, off=False)
+
+            # 3. Save state so outputs.kdl reflects active displays
+            self.save_all_settings(silent=True)
+            self.raw_outputs = self.backend.get_outputs()
+            self.canvas.update_outputs(self.raw_outputs, self.selected_output_name, self.current_settings)
+
+            # 4. Launch wl-mirror after short timeout for Wayland output availability
+            GLib.timeout_add(300, lambda: self._start_mirror(sec, primary))
+            return
 
         elif preset_id == "pc-only":
             self.backend.stop_mirroring()
@@ -739,9 +867,20 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
         subprocess.run(["niri", "msg", "action", "focus-monitor", primary], capture_output=True)
 
         self.save_all_settings(silent=True)
-        # Refresh raw outputs and update canvas live
         self.raw_outputs = self.backend.get_outputs()
-        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name)
+        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name, self.current_settings)
+
+    def _start_mirror(self, sec, primary):
+        ok = self.backend.start_mirroring(sec, primary)
+        if ok:
+            self.banner.set_title(f"Mirroring Active: {primary} → {sec}")
+            self.banner.set_revealed(True)
+            self.toast_overlay.add_toast(Adw.Toast.new(f"Mirroring {primary} to {sec}"))
+            self.backend.notify_dms_toast(f"Mirroring to {sec}", "view-mirror-symbolic")
+        else:
+            self.toast_overlay.add_toast(Adw.Toast.new("Failed to start display mirroring"))
+        subprocess.run(["niri", "msg", "action", "focus-monitor", primary], capture_output=True)
+        return False
 
     def _set_pos(self, name, x, y, off=False):
         if name not in self.current_settings:
@@ -749,10 +888,16 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
         self.current_settings[name]["pos_x"] = x
         self.current_settings[name]["pos_y"] = y
         self.current_settings[name]["off"] = off
-        if name in self.raw_outputs and "logical" in self.raw_outputs[name]:
-            self.raw_outputs[name]["logical"]["x"] = x
-            self.raw_outputs[name]["logical"]["y"] = y
-        self.backend.apply_output_live(name, pos_x=x, pos_y=y, off=off)
+        cfg = self.current_settings[name]
+        self.backend.apply_output_live(
+            name,
+            mode=cfg.get("mode"),
+            scale=cfg.get("scale"),
+            pos_x=x,
+            pos_y=y,
+            transform=cfg.get("transform", "normal"),
+            off=off
+        )
 
     def on_stop_mirroring_clicked(self, banner):
         self.backend.stop_mirroring()
@@ -782,7 +927,7 @@ class DisplayManagerWindow(Adw.ApplicationWindow):
 
         # 4. Refresh outputs from backend and update canvas
         self.raw_outputs = self.backend.get_outputs()
-        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name)
+        self.canvas.update_outputs(self.raw_outputs, self.selected_output_name, self.current_settings)
 
         # 5. Keep focus on primary monitor so cursor does not move to external monitor
         primary = "eDP-1" if "eDP-1" in self.raw_outputs else list(self.raw_outputs.keys())[0]

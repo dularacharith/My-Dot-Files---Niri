@@ -1,27 +1,18 @@
 {
   "cornerRadius": 12,
-  "niriLayoutRadiusOverride": 3,
-  "niriLayoutBorderSize": 2,
+  "niriLayoutRadiusOverride": 5,
+  "niriLayoutBorderSize": 1,
   "mouseNaturalScroll": true,
   "touchpadDisableWhileTyping": false,
   "touchpadScrollFactor": 0.5,
-  "clockFormat": "12h",
   "animationSpeed": 4,
   "syncComponentAnimationSpeeds": false,
   "blurLayerOutlineOpacity": 0.14,
   "blurBorderOpacity": 0.37,
   "systemTrayIconTintMode": "monochrome",
-  "controlCenterShowNetworkIcon": false,
-  "controlCenterShowBluetoothIcon": false,
-  "controlCenterShowAudioIcon": false,
-  "controlCenterShowVpnIcon": false,
-  "controlCenterShowScreenSharingIcon": false,
+  "controlCenterShowMicPercent": true,
   "appIdSubstitutions": [],
-  "clockDateFormat": "ddd MMM d",
-  "greeterEnableFprint": true,
   "networkPreference": "wifi",
-  "iconThemeDark": "MacTahoe-dark",
-  "iconThemeLight": "MacTahoe",
   "iconThemePerMode": true,
   "cursorSettings": {
     "theme": "macOS-White",
@@ -39,9 +30,6 @@
       "cursorHideTimeout": 0
     }
   },
-  "launcherLogoMode": "custom",
-  "launcherLogoCustomPath": "/home/dularacharith/.config/quickshell/dms/assets/apple.svg",
-  "launcherLogoColorOverride": "surface",
   "fontFamily": "SF Pro Display",
   "fontWeight": 500,
   "acMonitorTimeout": 600,
@@ -66,33 +54,37 @@
       "showOnLastDisplay": true,
       "leftWidgets": [
         "launcherButton",
-        "focusedWindow",
-        "workspaceSwitcher"
+        "workspaceSwitcher",
+        "focusedWindow"
       ],
       "centerWidgets": [
-        "music"
+        "music",
+        "clock",
+        "weather"
       ],
       "rightWidgets": [
         "systemTray",
+        "clipboard",
+        "cpuUsage",
+        "memUsage",
+        "notificationButton",
         "battery",
-        "spotlight",
-        "controlCenterButton",
-        "clock"
+        "controlCenterButton"
       ],
-      "spacing": 4,
+      "spacing": 0,
       "innerPadding": 4,
-      "barInsetPadding": 0,
+      "barInsetPadding": -1,
       "barLengthPadding": 0,
-      "bottomGap": 0,
-      "attachToScreenEdge": true,
-      "transparency": 0.85,
+      "bottomGap": -1,
+      "attachToScreenEdge": false,
+      "transparency": 1,
       "widgetTransparency": 0,
       "squareCorners": true,
       "noBackground": false,
       "maximizeWidgetIcons": false,
       "maximizeWidgetText": false,
       "removeWidgetPadding": false,
-      "widgetPadding": 6,
+      "widgetPadding": 8,
       "batteryColorMode": "theme",
       "gothCornersEnabled": false,
       "gothCornerRadiusOverride": true,
@@ -105,12 +97,12 @@
       "widgetOutlineColor": "primary",
       "widgetOutlineOpacity": 1,
       "widgetOutlineThickness": 1,
-      "fontScale": 1,
-      "iconScale": 0.95,
-      "autoHide": false,
+      "fontScale": 1.08,
+      "iconScale": 1,
+      "autoHide": true,
       "autoHideStrict": false,
       "autoHideDelay": 400,
-      "showOnWindowsOpen": true,
+      "showOnWindowsOpen": false,
       "openOnOverview": false,
       "visible": true,
       "popupGapsAuto": true,
@@ -155,20 +147,6 @@
     "hslSaturation": 0,
     "hslLightness": 1,
     "valid": true
-  },
-  "builtInPluginSettings": {
-    "dms_settings_search": {
-      "trigger": "?"
-    },
-    "dms_clipboard_search": {
-      "trigger": "cb"
-    },
-    "dms_power": {
-      "trigger": "pw"
-    },
-    "dms_qr_generator": {
-      "trigger": "qrg"
-    }
   },
   "configVersion": 18
 }

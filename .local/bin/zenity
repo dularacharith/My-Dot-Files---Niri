@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Smart Zenity wrapper to fix window sizing and prevent text overflow.
+# Specifically handles callers like Chromium/Chrome that pass --no-wrap
+# on long dialog messages, which causes dialogs to explode past screen bounds.
+
+REAL_ZENITY="/usr/bin/zenity"
+if [ ! -x "$REAL_ZENITY" ]; then
+    REAL_ZENITY="$(which -a zenity | grep -v "$0" | head -n 1)"
+fi
+
+has_no_wrap=0
+has_width=0
+text_len=0
+args=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-wrap)
+            has_no_wrap=1
+            shift
+            ;;
+        --width|--width=*)
+            has_width=1
+            args+=("$1")
+            if [[ "$1" == "--width" && $# -gt 1 ]]; then
+                shift
+                args+=("$1")
+            fi
+            shift
+            ;;
+        --text=*)
+            val="${1#--text=}"
+            text_len=${#val}
+            args+=("$1")
+            shift
+            ;;
+        --text)
+            args+=("$1")
+            shift
+            if [[ $# -gt 0 ]]; then
+                text_len=${#1}
+                args+=("$1")
+                shift
+            fi
+            ;;
+        *)
+            args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# If --no-wrap was passed, or if dialog text is long and no explicit width was set,
+# ensure a comfortable width is provided so text wraps nicely within screen bounds.
+if [[ $has_width -eq 0 ]]; then
+    if [[ $has_no_wrap -eq 1 || $text_len -gt 80 ]]; then
+        args+=("--width=650")
+    fi
+fi
+
+exec "$REAL_ZENITY" "${args[@]}"

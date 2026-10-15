@@ -1,5 +1,10 @@
 // Layer rules
 layer-rule {
+  match namespace="^dms:.*wallpaper.*$"
+  place-within-backdrop true
+}
+
+layer-rule {
   match namespace="awww-daemon"
   place-within-backdrop true
 }
@@ -175,5 +180,13 @@ window-rule {
   match app-id="audacity"
   match app-id="org.audacityteam.Audacity"
   scroll-factor 0.25
+}
+
+// Dialog & Prompt windows
+window-rule {
+  match app-id="zenity"
+  match app-id=r#"^zenity$"#
+  open-floating true
+  max-width 850
 }
 

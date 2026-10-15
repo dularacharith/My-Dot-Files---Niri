@@ -229,7 +229,7 @@ class NiriAutoFloat:
         app_id = (win.get('app_id') or '').lower()
         if 'picture-in-picture' in title or 'picture-in-picture' in app_id:
             return True
-        if 'toast' in app_id or 'overlay' in app_id or 'polkit' in app_id or 'pinentry' in app_id or 'portal' in app_id:
+        if 'toast' in app_id or 'overlay' in app_id or 'polkit' in app_id or 'pinentry' in app_id or 'portal' in app_id or 'zenity' in app_id or 'kdialog' in app_id:
             return True
         if any(k in app_id for k in (
             'displaymanager', 'display-manager', 'dms', 'gnome-control-center',
@@ -242,11 +242,13 @@ class NiriAutoFloat:
         if not win:
             return False
         app_id = (win.get('app_id') or '').lower()
+        title = (win.get('title') or '').lower()
         return any(k in app_id for k in (
             'kitty', 'alacritty', 'ghostty', 'wezterm', 'vlc', 'haruna',
             'mpv', 'celluloid', 'showtime', 'decibels', 'totem', 'calculator',
-            'galculator', 'blueman'
-        ))
+            'galculator', 'blueman', 'nautilus', 'dolphin', 'thunar', 'etcher',
+            'woeusb', 'usbimager'
+        )) or any(k in title for k in ('woeusb', 'usbimager'))
 
     def check_fullscreen(self, win, workspaces, outputs):
         if not win:
@@ -288,8 +290,17 @@ class NiriAutoFloat:
             'vlc', 'haruna', 'mpv', 'celluloid', 'showtime', 'decibels', 'totem'
         ))
 
+    def is_file_manager(self, win):
+        if not win:
+            return False
+        app_id = (win.get('app_id') or '').lower()
+        return any(k in app_id for k in ('nautilus', 'dolphin', 'thunar', 'nemo', 'pcmanfm'))
+
     def make_centered_rectangle(self, win, wid, workspaces, outputs):
         if not win or self.is_exempt(win) or wid in self.fullscreen_ids:
+            return
+        if self.is_file_manager(win):
+            log.info(f"Preserving natural/configured geometry for file manager {wid} ({win.get('app_id')})")
             return
         if not self.is_default_floating(win):
             return

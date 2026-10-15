@@ -9,22 +9,29 @@ Designed for peak productivity, aesthetic elegance, and seamless multitasking. F
 ## 📸 Highlights & Features
 
 - **Niri Scrollable-Tiling Compositor**:
-  - **Custom GLSL Animation Shaders**:
-    - `window-open`: Vibrant zoom pop with lively overshoot.
-    - `window-close`: Sleek sink-and-shrink with a subtle downward drop.
-    - `window-resize`: Custom progressive shader featuring zero-ghosting scaling on maximize and smooth dissolution on minimize.
+  - **Calibrated Butter-Smooth Interaction Animations**:
+    - **macOS-Grade Physics**: Calm, organic curves and balanced spring dynamics ($k=200\text{--}250$, damping ratio $0.85\text{--}0.88$).
+    - `window-resize`: Calibrated 700ms `ease-out-cubic` progressive texture shader for smooth tile reflow, float-to-tile, and tile-to-float transitions.
+    - `window-open`: 650ms `ease-out-cubic` with in-place scale (90% to 100%), alpha fade, and boundary-safe clipping.
+    - `window-close`: 500ms `ease-out-cubic` with soft in-place scale (100% to 94%) and gentle dissolve.
+    - `workspace-switch`, `overview-open-close`, `window-movement`: Luxurious, fluid momentum transitions with zero stutter.
   - **Stationary Top Bar**: Locked to `Layer::Top` so it remains perfectly fixed during workspace transitions.
   - **Smart Media Rules**: Floating-by-default with predefined dimensions for VLC, Haruna, MPV, Celluloid, Showtime, Decibels, and Totem.
+
+- **Smart Zenity Dialog Wrapper**:
+  - Intercepts `--no-wrap` calls from apps like Google Chrome / Chromium (such as the profile lock dialog) and enforces `--width=650`.
+  - Enforces `max-width 850` and auto-floating rules in Niri, preventing modal dialogs and notification prompts from exploding beyond screen boundaries.
 
 - **Dank Material Shell (DMS)**:
   - Material 3 / Material You automatic color theming via Matugen.
   - Tailored bar layout with launcher, active workspace switcher, task title, weather, clock, media player controls, system tray, battery, and control center.
   - Consistent dynamic theming synced across Ghostty, Kitty, Alacritty, GTK 3/4, Cava, and swaylock.
 
-- **Intelligent Background Daemon (`niri-floating-stash`)**:
-  - Automatically hides (stashes) floating windows when a window is maximized or fullscreened, keeping your view distraction-free.
-  - Proactively triggers DMS bar hiding via IPC on frame 0 when media players or windows expand to fullscreen, eliminating top-bar overlap delay.
-  - Seamlessly restores stashed windows to their exact positions when unmaximizing or switching workspaces.
+- **Intelligent Background Daemon (`niri-auto-float`)**:
+  - Automatically manages floating and tiling dynamics based on window focus.
+  - Geometry preservation for file managers (Nautilus, Dolphin, Thunar), opening cleanly at 900x600 without secondary resizing glitches.
+  - Proactively hides the DMS bar via IPC on frame 0 when media players or windows expand to fullscreen, eliminating top-bar overlap delay.
+  - Automatically exempts dialogs, toasts, utilities (USBImager, WoeUSB, Balena Etcher), and media viewers.
 
 - **Windows-Style Snipping Tool (`Mod+Shift+S`)**:
   - Fast sub-30ms screen capture using GTK4 and `gtk4-layer-shell`.
@@ -155,13 +162,13 @@ chmod +x install.sh
 ```
 
 The installer will:
-1. Back up any existing conflicting configuration files to `~/.config/dotfiles_backup_<timestamp>/`.
+1. Back up any existing conflicting configuration files, root dotfiles, and local binaries to `~/.config/dotfiles_backup_<timestamp>/`.
 2. Deploy `.config/` files (`niri`, `DankMaterialShell`, `environment.d`, `kitty`, `ghostty`, `alacritty`, etc.).
-3. Deploy `.local/bin/` utility scripts (`niri-floating-stash`, `wallpaper-ctl`, `packettracer`).
+3. Deploy `.local/bin/` utility scripts (`niri-auto-float`, `zenity` wrapper, `wallpaper-ctl`, `packettracer`, etc.).
 4. Install the Windows Snipping Tool into `~/.local/share/win-snipping-tool` and register its desktop entry.
 5. Compile and place `libpt_canvas_fix.so` into `~/.local/lib/`.
 6. Deploy the landscape wallpaper collection to `~/Pictures/Wallpapers/Landscape/`.
-7. Reload and enable the `niri-floating-stash` systemd user service.
+7. Reload and enable the `niri-auto-float` systemd user service.
 
 ---
 
@@ -206,7 +213,7 @@ If you prefer to install manually:
 6. **Enable Systemd Services**:
    ```bash
    systemctl --user daemon-reload
-   systemctl --user enable --now niri-floating-stash.service
+   systemctl --user enable --now niri-auto-float.service
    systemctl --user restart dms.service
    ```
 
@@ -217,14 +224,88 @@ If you prefer to install manually:
 
 ---
 
+## 🗑️ Uninstallation & Removal
+
+### Automated Removal & Backup Rollback (Recommended)
+
+To completely remove the dotfiles or restore your desktop to its exact pre-installation state, run `uninstall.sh`:
+
+```bash
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
+The uninstaller will:
+1. Prompt for confirmation (or run non-interactively with `-y`).
+2. Stop and disable the `niri-auto-float` systemd user service.
+3. Remove deployed utility scripts from `~/.local/bin/` (`niri-auto-float`, `zenity`, `wallpaper-ctl`, `win-snipping-tool`, etc.).
+4. Remove application data and shims (`~/.local/share/win-snipping-tool`, `~/.local/lib/libpt_canvas_fix.so`).
+5. Automatically detect your latest configuration backup (`~/.config/dotfiles_backup_*`) and offer to restore all original configurations and root dotfiles.
+6. Refresh system caches (desktop database and font cache) and reload Niri.
+
+#### Uninstaller Options
+
+| Flag | Description |
+| :--- | :--- |
+| `-y, --yes` | Run non-interactively, assuming Yes to all prompts |
+| `--restore-backup DIR` | Restore from a specific backup directory instead of auto-detecting the latest |
+| `--no-restore` | Remove repository dotfiles and scripts without restoring any previous backup |
+| `-h, --help` | Show command-line help |
+
+### Manual Removal (Step-by-Step)
+
+If you prefer to remove components manually:
+
+1. **Stop & Disable Daemons**:
+   ```bash
+   systemctl --user stop niri-auto-float.service
+   systemctl --user disable niri-auto-float.service
+   rm -f ~/.config/systemd/user/niri-auto-float.service
+   rm -f ~/.config/systemd/user/dms.service.d/override.conf
+   systemctl --user daemon-reload
+   ```
+
+2. **Remove Deployed Binaries**:
+   ```bash
+   rm -f ~/.local/bin/niri-auto-float \
+         ~/.local/bin/zenity \
+         ~/.local/bin/wallpaper-ctl \
+         ~/.local/bin/win-snipping-tool \
+         ~/.local/bin/brightness-step \
+         ~/.local/bin/fn-feedback \
+         ~/.local/bin/niri-display-manager \
+         ~/.local/bin/packettracer \
+         ~/.local/bin/wl-mirror
+   ```
+
+3. **Remove Application Data & Fixes**:
+   ```bash
+   rm -rf ~/.local/share/win-snipping-tool
+   rm -f ~/.local/share/applications/win-snipping-tool.desktop
+   rm -f ~/.local/lib/libpt_canvas_fix.so
+   rm -rf ~/.local/src/pt_canvas_fix
+   ```
+
+4. **Restore Configuration Files**:
+   Locate your latest backup directory in `~/.config/dotfiles_backup_<timestamp>/` and copy your original files back:
+   ```bash
+   cp -r ~/.config/dotfiles_backup_<timestamp>/* ~/.config/
+   if [ -d ~/.config/dotfiles_backup_<timestamp>/root_dotfiles ]; then
+       cp -r ~/.config/dotfiles_backup_<timestamp>/root_dotfiles/* ~/
+   fi
+   ```
+
+---
+
 ## 📂 Repository Structure
 
 ```
 My-Dot-Files---Niri/
 ├── .config/
 │   ├── niri/                       # Niri window manager config & custom shaders
-│   │   ├── config.kdl              # Main Niri configuration
-│   │   ├── window_rules.kdl        # Custom window and floating rules
+│   │   ├── config.kdl              # Main Niri configuration (calibrated animations & window rules)
+│   │   ├── window_rules.kdl        # Custom window, dialog & floating rules
+│   │   ├── touchpad.kdl            # Touchpad gesture & scroll tuning
 │   │   └── dms/                    # DMS modular Niri includes (binds, colors, layout)
 │   ├── DankMaterialShell/          # DMS shell & widget preferences
 │   │   ├── settings.json           # Bar layout, widget configuration, and margins
@@ -233,7 +314,7 @@ My-Dot-Files---Niri/
 │   │   ├── 90-dms.conf
 │   │   └── dms.conf                # DMS_DANKBAR_LAYER=top
 │   ├── systemd/user/               # User services and overrides
-│   │   ├── niri-floating-stash.service
+│   │   ├── niri-auto-float.service # Dynamic window floating manager daemon
 │   │   └── dms.service.d/override.conf
 │   ├── alacritty/                  # Alacritty terminal configuration
 │   ├── ghostty/                    # Ghostty terminal configuration
@@ -248,10 +329,15 @@ My-Dot-Files---Niri/
 │   └── danksearch/ & dgop/         # Search provider & widget configurations
 ├── .local/
 │   ├── bin/
-│   │   ├── niri-floating-stash     # Python daemon for floating auto-stash & zero-delay bar sync
+│   │   ├── niri-auto-float         # Python daemon for floating window management & zero-delay bar sync
+│   │   ├── zenity                  # Smart Zenity wrapper (dialog width auto-fitting & overflow fix)
 │   │   ├── wallpaper-ctl           # Wallpaper management script
 │   │   ├── win-snipping-tool       # Windows-style Snipping Tool launcher
-│   │   └── packettracer            # Cisco Packet Tracer Wayland launcher wrapper
+│   │   ├── brightness-step         # Smooth brightness controller
+│   │   ├── fn-feedback             # Function key visual feedback
+│   │   ├── niri-display-manager    # Display configuration and mirroring manager
+│   │   ├── packettracer            # Cisco Packet Tracer Wayland launcher wrapper
+│   │   └── wl-mirror               # Wayland mirror utility
 │   ├── share/
 │   │   ├── applications/           # Desktop entries (Chrome, Snipping Tool, Cisco Packet Tracer)
 │   │   ├── icons/                  # macOS cursor theme collection & Packet Tracer app icons
@@ -262,7 +348,8 @@ My-Dot-Files---Niri/
 ├── .Xresources & .xprofile         # X11 / XWayland xrdb cursor scaling & resource synchronization
 ├── .gtkrc-2.0                      # GTK2 cursor theme & size fallback
 ├── wallpapers/                     # 14 curated high-resolution landscape wallpapers
-├── install.sh                      # Automated, idempotent installer script
+├── install.sh                      # Automated, idempotent installer script (with auto-backup)
+├── uninstall.sh                    # Automated uninstaller & configuration rollback script
 ├── .gitignore
 └── README.md
 ```
@@ -272,16 +359,16 @@ My-Dot-Files---Niri/
 ## 🛠️ Customizations & Troubleshooting
 
 ### Top Bar Visibility & Layer Settings
-The top bar is set to `Layer::Top` via `~/.config/environment.d/dms.conf` (`DMS_DANKBAR_LAYER=top`). This ensures the bar stays static during workspace navigation. The `niri-floating-stash` daemon monitors active workspaces and hides the bar instantaneously when any window enters full-screen or expanded media mode, restoring it seamlessly upon exiting.
+The top bar is set to `Layer::Top` via `~/.config/environment.d/dms.conf` (`DMS_DANKBAR_LAYER=top`). This ensures the bar stays static during workspace navigation. The `niri-auto-float` daemon monitors active workspaces and hides the bar instantaneously when any window enters full-screen or expanded media mode, restoring it seamlessly upon exiting.
 
 ### Checking Daemon Status
-To check if the background stash daemon is active:
+To check if the background auto-float manager daemon is active:
 ```bash
-systemctl --user status niri-floating-stash.service
+systemctl --user status niri-auto-float.service
 ```
 To view real-time logs:
 ```bash
-journalctl --user -u niri-floating-stash -f
+journalctl --user -u niri-auto-float -f
 ```
 
 ### Changing Wallpapers

@@ -53,7 +53,7 @@ check_dependencies() {
     log_info "Checking system dependencies..."
     
     local missing=()
-    for cmd in niri dms python3 gcc make; do
+    for cmd in niri dms python3 gcc make zenity; do
         if ! command -v "$cmd" &>/dev/null; then
             missing+=("$cmd")
         fi
@@ -68,11 +68,11 @@ check_dependencies() {
             echo "  sudo dnf copr enable avengemedia/danklinux"
             echo "  sudo dnf install niri dms-cli quickshell ghostty kitty alacritty \\"
             echo "                   swaylock fastfetch cava python3 python3-pillow \\"
-            echo "                   python3-gobject gtk4 gtk4-layer-shell gcc make wl-clipboard"
+            echo "                   python3-gobject gtk4 gtk4-layer-shell gcc make wl-clipboard zenity"
         elif [ -f /etc/arch-release ]; then
             echo -e "${YELLOW}To install dependencies on Arch Linux, run:${NC}"
             echo "  sudo pacman -S niri ghostty kitty alacritty swaylock fastfetch cava python \\"
-            echo "                 python-pillow python-gobject gtk4 gcc make wl-clipboard"
+            echo "                 python-pillow python-gobject gtk4 gcc make wl-clipboard zenity"
             echo "  # Install DMS and quickshell from AUR (using yay or paru):"
             echo "  yay -S dms-bin quickshell-git gtk4-layer-shell"
         fi
@@ -119,7 +119,36 @@ backup_existing() {
             cp -r "$HOME/.config/$cfg" "$BACKUP_DIR/" 2>/dev/null || true
         fi
     done
-    log_success "Backup completed."
+
+    # Backup root dotfiles
+    mkdir -p "$BACKUP_DIR/root_dotfiles"
+    for rf in .Xresources .Xdefaults .xprofile .gtkrc-2.0 .bashrc .blerc; do
+        if [ -f "$HOME/$rf" ]; then
+            cp "$HOME/$rf" "$BACKUP_DIR/root_dotfiles/" 2>/dev/null || true
+        fi
+    done
+
+    # Backup existing binaries in ~/.local/bin that may be overwritten
+    mkdir -p "$BACKUP_DIR/local_bin"
+    for b in niri-auto-float zenity wallpaper-ctl win-snipping-tool brightness-step fn-feedback niri-display-manager packettracer wl-mirror; do
+        if [ -f "$HOME/.local/bin/$b" ]; then
+            cp -P "$HOME/.local/bin/$b" "$BACKUP_DIR/local_bin/" 2>/dev/null || true
+        fi
+    done
+
+    # Record latest backup directory for uninstall.sh
+    mkdir -p "$HOME/.config"
+    echo "$BACKUP_DIR" > "$HOME/.config/.dotfiles_last_backup"
+
+    # Create manifest
+    cat > "$BACKUP_DIR/MANIFEST.txt" << EOF
+Backup Created: $(date)
+Source: My-Dot-Files---Niri install.sh
+Target User: $USER
+Home: $HOME
+EOF
+
+    log_success "Backup completed and registered to ~/.config/.dotfiles_last_backup."
 }
 
 # ------------------------------------------------------------------------------
@@ -374,8 +403,9 @@ main() {
     echo -e "${BOLD}${GREEN}================================================================${NC}"
     echo ""
     echo -e "${BOLD}What's configured:${NC}"
-    echo "  - Niri with custom cubic-bezier shaders & smooth window-resize"
-    echo "  - Niri Auto-Float Dynamic Manager (automatic tile-on-unfocus & float-on-refocus)"
+    echo "  - Niri with calibrated butter-smooth animations & custom cubic shaders"
+    echo "  - Niri Auto-Float Dynamic Manager (automatic tile-on-unfocus & float geometry preservation)"
+    echo "  - Smart Zenity wrapper (dialog width auto-fitting & text overflow prevention)"
     echo "  - Dank Material Shell (DMS) on Layer::Top with auto-sync"
     echo "  - Windows Snipping Tool (Mod+Shift+S)"
     echo "  - Wallpaper Controller: wallpaper-ctl (next, prev, random)"
@@ -385,6 +415,9 @@ main() {
     echo ""
     echo -e "${CYAN}To reload Niri right now:${NC}"
     echo "  niri msg action load-config-file"
+    echo ""
+    echo -e "${YELLOW}To uninstall or restore your previous configuration at any time:${NC}"
+    echo "  ./uninstall.sh"
     echo ""
 }
 

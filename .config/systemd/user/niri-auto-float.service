@@ -1,7 +1,8 @@
 [Unit]
 Description=Niri Auto-Float Dynamic Window Manager
-PartOf=graphical-session.target
-After=graphical-session.target
+PartOf=niri.service
+After=niri.service
+Requisite=niri.service
 
 [Service]
 Type=simple
@@ -10,4 +11,4 @@ Restart=always
 RestartSec=1s
 
 [Install]
-WantedBy=graphical-session.target niri.service
+WantedBy=niri.service

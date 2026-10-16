@@ -131,7 +131,7 @@ backup_existing() {
 
     # Backup existing binaries in ~/.local/bin that may be overwritten
     mkdir -p "$BACKUP_DIR/local_bin"
-    for b in niri-auto-float zenity wallpaper-ctl win-snipping-tool brightness-step fn-feedback niri-display-manager packettracer wl-mirror; do
+    for b in niri-auto-float theme-ctl zenity wallpaper-ctl win-snipping-tool brightness-step fn-feedback niri-display-manager packettracer wl-mirror; do
         if [ -f "$HOME/.local/bin/$b" ]; then
             cp -P "$HOME/.local/bin/$b" "$BACKUP_DIR/local_bin/" 2>/dev/null || true
         fi
@@ -410,6 +410,7 @@ main() {
     echo "  - Dank Material Shell (DMS) on Layer::Top with auto-sync"
     echo "  - Windows Snipping Tool (Mod+Shift+S)"
     echo "  - Wallpaper Controller: wallpaper-ctl (next, prev, random)"
+    echo "  - Theme Controller: theme-ctl (light, dark, auto, schedule)"
     echo "  - Cisco Packet Tracer canvas fix shim (embedded note editing)"
     echo "  - Ghostty, Kitty, Alacritty, Swaylock, Cava, Fish, and Zsh configs"
     echo "  - Typography: SF Pro Display system-wide & Sinhala Sangam MN for Sinhala"

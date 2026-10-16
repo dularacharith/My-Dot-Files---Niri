@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# theme-ctl: Unified System Light/Dark Theme Controller for Niri & DMS
+# Controls DMS shell, GTK3/GTK4 apps, FreeDesktop color-scheme, and terminals.
+# ==============================================================================
+set -euo pipefail
+
+SESSION_FILE="$HOME/.local/state/DankMaterialShell/session.json"
+
+show_help() {
+    cat << 'EOF'
+Usage: theme-ctl <command> [args...]
+
+Commands:
+  light           Switch system to Light theme
+  dark            Switch system to Dark theme
+  toggle          Toggle between Light and Dark themes
+  auto            Evaluate schedule based on current time and apply theme
+  status          Show current theme mode, schedule, and next transition
+  schedule        Show or set time-based schedule (e.g. theme-ctl schedule 6 30 18 30)
+  help            Show this help message
+
+Examples:
+  theme-ctl light
+  theme-ctl dark
+  theme-ctl auto
+  theme-ctl schedule 6 30 18 30
+EOF
+}
+
+get_current_mode() {
+    local mode
+    mode=$(dms ipc call theme getMode 2>/dev/null || echo "")
+    if [[ -z "$mode" ]]; then
+        local cs
+        cs=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'" || echo "")
+        if [[ "$cs" == "prefer-light" ]]; then
+            mode="light"
+        else
+            mode="dark"
+        fi
+    fi
+    echo "$mode"
+}
+
+read_schedule() {
+    # Default schedule: 06:30 (Light mode) to 18:30 (Dark mode)
+    START_HOUR=18
+    START_MIN=30
+    END_HOUR=6
+    END_MIN=30
+
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
+        local sh sm eh em
+        sh=$(jq -r '.themeModeStartHour // .nightModeStartHour // empty' "$SESSION_FILE" 2>/dev/null || true)
+        sm=$(jq -r '.themeModeStartMinute // .nightModeStartMinute // empty' "$SESSION_FILE" 2>/dev/null || true)
+        eh=$(jq -r '.themeModeEndHour // .nightModeEndHour // empty' "$SESSION_FILE" 2>/dev/null || true)
+        em=$(jq -r '.themeModeEndMinute // .nightModeEndMinute // empty' "$SESSION_FILE" 2>/dev/null || true)
+
+        [[ -z "$sh" ]] || START_HOUR="$sh"
+        [[ -z "$sm" ]] || START_MIN="$sm"
+        [[ -z "$eh" ]] || END_HOUR="$eh"
+        [[ -z "$em" ]] || END_MIN="$em"
+    fi
+}
+
+notify_theme() {
+    local mode="$1"
+    local icon="weather-clear-night"
+    local title="Dark Mode Active"
+    if [[ "$mode" == "light" ]]; then
+        icon="weather-clear"
+        title="Light Mode Active"
+    fi
+
+    if command -v dms &>/dev/null; then
+        dms ipc call toast infoWith "$title" "" "" "$icon" >/dev/null 2>&1 || true
+    fi
+}
+
+apply_light() {
+    echo "Switching to Light Theme..."
+    dms ipc call theme light >/dev/null 2>&1 || true
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-light' 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3' 2>/dev/null || true
+    notify_theme "light"
+    echo "System switched to Light theme."
+}
+
+apply_dark() {
+    echo "Switching to Dark Theme..."
+    dms ipc call theme dark >/dev/null 2>&1 || true
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark' 2>/dev/null || true
+    notify_theme "dark"
+    echo "System switched to Dark theme."
+}
+
+apply_auto() {
+    read_schedule
+
+    local cur_hour cur_min cur_total start_total end_total
+    cur_hour=$(date +%-H)
+    cur_min=$(date +%-M)
+    cur_total=$((cur_hour * 60 + cur_min))
+    start_total=$((START_HOUR * 60 + START_MIN))
+    end_total=$((END_HOUR * 60 + END_MIN))
+
+    local should_be_light=0
+    if (( start_total < end_total )); then
+        # e.g. start=06:00, end=18:00
+        if (( cur_total >= start_total && cur_total < end_total )); then
+            should_be_light=1
+        fi
+    else
+        # start=18:30 (dark begins), end=06:30 (light begins)
+        if (( cur_total >= end_total && cur_total < start_total )); then
+            should_be_light=1
+        fi
+    fi
+
+    local current_mode
+    current_mode=$(get_current_mode)
+
+    if (( should_be_light )); then
+        if [[ "$current_mode" != "light" ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Schedule requires Light mode (current time: $(date '+%H:%M') is between $(printf "%02d:%02d" "$END_HOUR" "$END_MIN") and $(printf "%02d:%02d" "$START_HOUR" "$START_MIN"))."
+            apply_light
+        fi
+    else
+        if [[ "$current_mode" != "dark" ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Schedule requires Dark mode (current time: $(date '+%H:%M') is outside daytime window)."
+            apply_dark
+        fi
+    fi
+}
+
+cmd="${1:-status}"
+
+case "$cmd" in
+    light)
+        apply_light
+        ;;
+    dark)
+        apply_dark
+        ;;
+    toggle)
+        cur=$(get_current_mode)
+        if [[ "$cur" == "light" ]]; then
+            apply_dark
+        else
+            apply_light
+        fi
+        ;;
+    auto)
+        apply_auto
+        ;;
+    status)
+        cur=$(get_current_mode)
+        read_schedule
+        cs=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo "unknown")
+        gt=$(gsettings get org.gnome.desktop.interface gtk-theme 2>/dev/null || echo "unknown")
+        echo "=========================================="
+        echo " Current Theme Mode:     ${cur^^}"
+        echo " Portal color-scheme:    $cs"
+        echo " GTK theme:              $gt"
+        echo " Daytime / Light start:  $(printf "%02d:%02d" "$END_HOUR" "$END_MIN")"
+        echo " Nighttime / Dark start: $(printf "%02d:%02d" "$START_HOUR" "$START_MIN")"
+        echo " Current local time:     $(date '+%H:%M:%S')"
+        echo "=========================================="
+        ;;
+    schedule)
+        if [[ -n "${2:-}" && -n "${3:-}" && -n "${4:-}" && -n "${5:-}" ]]; then
+            eh="$2"
+            em="$3"
+            sh="$4"
+            sm="$5"
+            echo "Setting schedule: Light at $(printf "%02d:%02d" "$eh" "$em"), Dark at $(printf "%02d:%02d" "$sh" "$sm")..."
+            mkdir -p "$(dirname "$SESSION_FILE")"
+            if [[ -f "$SESSION_FILE" ]] && command -v jq &>/dev/null; then
+                tmp=$(mktemp)
+                jq --argjson eh "$eh" --argjson em "$em" --argjson sh "$sh" --argjson sm "$sm" \
+                   '.themeModeEndHour = $eh | .themeModeEndMinute = $em | .themeModeStartHour = $sh | .themeModeStartMinute = $sm | .nightModeEndHour = $eh | .nightModeEndMinute = $em | .nightModeStartHour = $sh | .nightModeStartMinute = $sm' \
+                   "$SESSION_FILE" > "$tmp" && mv "$tmp" "$SESSION_FILE"
+            fi
+            dms ipc call theme.auto.setSchedule "$sh" "$sm" "$eh" "$em" >/dev/null 2>&1 || true
+            apply_auto
+        else
+            read_schedule
+            echo "Current Schedule:"
+            echo "  Light mode (Daytime):   $(printf "%02d:%02d" "$END_HOUR" "$END_MIN")"
+            echo "  Dark mode (Nighttime):  $(printf "%02d:%02d" "$START_HOUR" "$START_MIN")"
+            echo ""
+            echo "To change schedule, run:"
+            echo "  theme-ctl schedule <lightHour> <lightMin> <darkHour> <darkMin>"
+            echo "Example (Light at 07:00, Dark at 19:00):"
+            echo "  theme-ctl schedule 7 0 19 0"
+        fi
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "Unknown command: $cmd" >&2
+        show_help
+        exit 1
+        ;;
+esac

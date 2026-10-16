@@ -83,8 +83,25 @@ class NiriAutoFloat:
         # Track windows currently in true fullscreen
         self.fullscreen_ids = set()
         # Track if window was floating before entering true fullscreen: wid -> bool
-        self.fullscreen_orig_floating = {}
         self._start_led_monitor()
+        self._start_theme_monitor()
+
+    def _start_theme_monitor(self):
+        t = threading.Thread(target=self._theme_monitor_loop, daemon=True)
+        t.start()
+
+    def _theme_monitor_loop(self):
+        import subprocess
+        time.sleep(3)
+        while self.running:
+            try:
+                subprocess.run(['theme-ctl', 'auto'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                log.debug(f"Theme monitor loop exception: {e}")
+            for _ in range(30):
+                if not self.running:
+                    break
+                time.sleep(1)
 
     def _start_led_monitor(self):
         t = threading.Thread(target=self._led_monitor_loop, daemon=True)

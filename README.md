@@ -385,6 +385,18 @@ wallpaper-ctl random    # Pick random wallpaper
 wallpaper-ctl list      # List available wallpapers
 ```
 
+### Theme Controller & Automatic Day/Night Switching
+The system automatically adapts between **Light Mode** during the day (06:30 – 18:30) and **Dark Mode** at night.
+To inspect or control the theme manually, use `theme-ctl`:
+```bash
+theme-ctl status        # Display current mode, portal setting, and schedule
+theme-ctl light         # Switch system to Light theme
+theme-ctl dark          # Switch system to Dark theme
+theme-ctl toggle        # Toggle between Light and Dark
+theme-ctl auto          # Evaluate current time and enforce scheduled theme
+theme-ctl schedule 7 0 19 0  # Set custom schedule (Light at 07:00, Dark at 19:00)
+```
+
 ---
 
 ## 👤 Author

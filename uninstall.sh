@@ -182,6 +182,7 @@ remove_binaries() {
 
     local binaries=(
         "niri-auto-float"
+        "theme-ctl"
         "zenity"
         "wallpaper-ctl"
         "win-snipping-tool"

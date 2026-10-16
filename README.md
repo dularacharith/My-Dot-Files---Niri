@@ -15,6 +15,11 @@ Designed for peak productivity, aesthetic elegance, and seamless multitasking. F
     - `window-open`: 650ms `ease-out-cubic` with in-place scale (90% to 100%), alpha fade, and boundary-safe clipping.
     - `window-close`: 500ms `ease-out-cubic` with soft in-place scale (100% to 94%) and gentle dissolve.
     - `workspace-switch`, `overview-open-close`, `window-movement`: Luxurious, fluid momentum transitions with zero stutter.
+  - **Intelligent Top Bar Auto-Hide & Fade Behavior**:
+    - Automatically displayed on empty workspaces and workspaces containing only floating windows.
+    - Gracefully fades and closes whenever a tiled window opens (or when a floating window is toggled to a tile).
+    - Moving the cursor to the top screen edge ($y = 0$) smoothly fades the top bar into view; moving away fades and closes it again after a 400ms delay.
+    - Floating windows (Nautilus, Calculator, dialogs, etc.) never trigger auto-hide, keeping the bar visible until tiled windows are present.
   - **Stationary Top Bar**: Locked to `Layer::Top` so it remains perfectly fixed during workspace transitions.
   - **Smart Media Rules**: Floating-by-default with predefined dimensions for VLC, Haruna, MPV, Celluloid, Showtime, Decibels, and Totem.
 

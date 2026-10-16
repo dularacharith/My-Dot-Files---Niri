@@ -102,7 +102,7 @@
       "autoHide": true,
       "autoHideStrict": false,
       "autoHideDelay": 400,
-      "showOnWindowsOpen": false,
+      "showOnWindowsOpen": true,
       "openOnOverview": false,
       "visible": true,
       "popupGapsAuto": true,

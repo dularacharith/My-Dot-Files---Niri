@@ -112,6 +112,7 @@ backup_existing() {
         "fish"
         "zsh"
         "vlc"
+        "quickshell"
     )
 
     for cfg in "${configs[@]}"; do

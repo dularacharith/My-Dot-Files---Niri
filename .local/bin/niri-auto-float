@@ -236,6 +236,9 @@ class NiriAutoFloat:
             'settings', 'snipping', 'signal', 'senpai', 'pavucontrol', 'nm-connection-editor'
         )) or any(k in title for k in ('settings', 'display manager', 'snipping tool', 'senpai')):
             return True
+        # Chrome/Chromium profile picker dialog
+        if ('google-chrome' in app_id or 'chromium' in app_id) and title in ('google chrome', 'chromium'):
+            return True
         return False
 
     def is_default_floating(self, win):

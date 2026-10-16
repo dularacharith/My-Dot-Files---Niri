@@ -190,3 +190,22 @@ window-rule {
   max-width 850
 }
 
+// Google Chrome Profile Picker: opens floating and centered
+window-rule {
+  match app-id=r#"^google-chrome(-stable)?$"# title=r#"^Google Chrome$"#
+  match app-id=r#"^chromium.*$"# title=r#"^Chromium$"#
+  open-floating true
+  default-column-width { fixed 850; }
+  default-window-height { fixed 560; }
+}
+
+// Google Chrome Browser Windows (Selected Profile): open as a maximized tile
+window-rule {
+  match app-id=r#"^google-chrome(-stable)?$"#
+  match app-id=r#"^chromium.*$"#
+  exclude title=r#"^Google Chrome$"#
+  exclude title=r#"^Chromium$"#
+  open-floating false
+  open-maximized true
+}
+

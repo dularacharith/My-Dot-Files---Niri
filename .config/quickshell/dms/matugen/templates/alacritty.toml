@@ -1,0 +1,31 @@
+[colors.primary]
+background = '{{colors.background.dark.hex}}'
+foreground = '{{colors.on_surface.dark.hex}}'
+
+[colors.selection]
+text = '{{colors.on_surface.dark.hex}}'
+background = '{{colors.primary_container.dark.hex}}'
+
+[colors.cursor]
+text = '{{colors.background.dark.hex}}'
+cursor = '{{colors.primary.dark.hex}}'
+
+[colors.normal]
+black   = '{{dank16.color0.dark.hex}}'
+red     = '{{dank16.color1.dark.hex}}'
+green   = '{{dank16.color2.dark.hex}}'
+yellow  = '{{dank16.color3.dark.hex}}'
+blue    = '{{dank16.color4.dark.hex}}'
+magenta = '{{dank16.color5.dark.hex}}'
+cyan    = '{{dank16.color6.dark.hex}}'
+white   = '{{dank16.color7.dark.hex}}'
+
+[colors.bright]
+black   = '{{dank16.color8.dark.hex}}'
+red     = '{{dank16.color9.dark.hex}}'
+green   = '{{dank16.color10.dark.hex}}'
+yellow  = '{{dank16.color11.dark.hex}}'
+blue    = '{{dank16.color12.dark.hex}}'
+magenta = '{{dank16.color13.dark.hex}}'
+cyan    = '{{dank16.color14.dark.hex}}'
+white   = '{{dank16.color15.dark.hex}}'

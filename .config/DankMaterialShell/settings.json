@@ -41,6 +41,7 @@
   "batterySuspendTimeout": 900,
   "batteryPostLockMonitorTimeout": 30,
   "lockBeforeSuspend": true,
+  "terminalsAlwaysDark": true,
   "osdPowerProfileEnabled": true,
   "barConfigs": [
     {

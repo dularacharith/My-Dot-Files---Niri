@@ -1,0 +1,13 @@
+[colors]
+background = '{{colors.background.dark.hex}}'
+foreground = '{{colors.on_surface.dark.hex}}'
+
+cursor_bg = '{{colors.primary.dark.hex}}'
+cursor_fg = '{{colors.background.dark.hex}}'
+cursor_border = '{{colors.primary.dark.hex}}'
+
+selection_bg = '{{colors.primary_container.dark.hex}}'
+selection_fg = '{{colors.on_surface.dark.hex}}'
+
+ansi = ['{{dank16.color0.dark.hex}}', '{{dank16.color1.dark.hex}}', '{{dank16.color2.dark.hex}}', '{{dank16.color3.dark.hex}}', '{{dank16.color4.dark.hex}}', '{{dank16.color5.dark.hex}}', '{{dank16.color6.dark.hex}}', '{{dank16.color7.dark.hex}}']
+brights = ['{{dank16.color8.dark.hex}}', '{{dank16.color9.dark.hex}}', '{{dank16.color10.dark.hex}}', '{{dank16.color11.dark.hex}}', '{{dank16.color12.dark.hex}}', '{{dank16.color13.dark.hex}}', '{{dank16.color14.dark.hex}}', '{{dank16.color15.dark.hex}}']
